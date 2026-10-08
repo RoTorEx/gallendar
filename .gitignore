@@ -18,3 +18,12 @@ __pycache__/
 .ruff_cache/
 
 .vibe/KERNEL_SOURCE
+
+# Local calendar configuration and service credentials
+gallendar.toml
+secrets/
+service-account*.json
+*.lock.tmp
+
+/config.toml
+/gallendar.lock

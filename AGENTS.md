@@ -33,3 +33,7 @@ This project uses committed local copies of the Vibecoding Kernel.
   local fix while waiting for a parent-kernel decision.
 - Add project-specific routing here only when it prevents repeated mistakes or
   unnecessary context loading.
+
+- For CLI commands, local installation and releases, read README.md and the
+  relevant scripts/* owner. Preserve the neighbouring CLI conventions documented
+  there; documentation alone does not satisfy a request for a working CLI.

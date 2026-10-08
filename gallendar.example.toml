@@ -1,0 +1,23 @@
+# Copy with `gallendar init`; edit IDs and credential path before using Google.
+# Relative paths are resolved relative to this config file.
+service_account_key = "secrets/service-account.json"
+# Keep this stable. Changing it makes existing clones belong to another instance.
+namespace = "gallendar-personal"
+# Explicit operator choices; these are example values, not settled product rules.
+horizon_days = 30
+poll_seconds = 60
+# "out_of_office_only": skip other all-day events.
+# "busy": include all-day Busy events, excluding birthday and workingLocation types.
+all_day_policy = "out_of_office_only"
+
+[[accounts]]
+name = "personal-a"
+owner_email = "REPLACE-A@gmail.com"
+source = "REPLACE-A@gmail.com"
+target = "REPLACE-A@group.calendar.google.com"
+
+[[accounts]]
+name = "personal-b"
+owner_email = "REPLACE-B@gmail.com"
+source = "REPLACE-B@gmail.com"
+target = "REPLACE-B@group.calendar.google.com"
