@@ -27,3 +27,9 @@ vibe-propose:
 	python3 "$$kernel_root/tools/vibe-propose" .
 
 # VIBE:KERNEL_MAKE_END
+
+.PHONY: check
+
+check:
+	git diff --check
+	git diff --cached --check

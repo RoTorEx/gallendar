@@ -1,8 +1,27 @@
 # gallendar
 
-<!-- VIBE:PROJECT_BRIEF_REQUIRED -->
+Личный self-hosted сервис на Rust для синхронизации занятости между четырьмя
+Google аккаунтами. Событие в одном аккаунте должно блокировать тот же интервал
+в остальных трёх обезличенными событиями `Busy`.
 
-TODO: explain what this project does, for whom, and how to use it.
+## Текущий этап
+
+Проверка гипотезы о вторичных календарях копий. Сервис ещё не реализован,
+доступ к аккаунтам не настроен. Первый эксперимент — на двух личных аккаунтах;
+затем требуется проверить все четыре целевых аккаунта и рабочее планирование.
+
+Начать с очереди в [TASK.md](TASK.md) и ручного протокола в
+[business/validation.md](business/validation.md). До подтверждения доступности
+и sharing полный сервис не разрабатывать.
+
+## Проверка документов
+
+```bash
+make check
+```
+
+Сейчас команда проверяет ошибки whitespace в Git diff. Это не тест календарей
+или сервиса. Проверки Rust будут добавлены вместе с реализацией.
 
 ## Project truth
 
@@ -10,6 +29,8 @@ TODO: explain what this project does, for whom, and how to use it.
 - `business/*` — focused business domains, created only when needed.
 - `CHANGELOG.md` — notable unreleased and released behavior.
 - `AGENTS.md` — context router for coding agents.
+- [TASK.md](TASK.md) — текущие проверки и отложенные неоднозначности.
+- [ROADMAP.md](ROADMAP.md) — этапы разработки и условия перехода.
 
 ## Kernel
 
