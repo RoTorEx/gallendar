@@ -7,7 +7,8 @@ CLI на Rust для личной синхронизации занятости 
 ## Быстрый запуск
 
 ```bash
-make build-release
+make build-local
+./gallendar demo
 make run ARGS=demo
 make install-local
 gallendar --help
@@ -40,39 +41,246 @@ gallendar demo
 
 Базовый интерфейс и доставка согласованы с соседями `linkdeck`, `hop`, `shelve`.
 
-## Настройка Google
+## Настройка Google — шаг за шагом
 
-Сейчас доступ не настроен; первый тест запланирован на двух личных аккаунтах.
+Начинаем с двух личных Google аккаунтов A и B. Если второго личного аккаунта
+пока нет, он понадобится для проверки доступности со стороны другого пользователя.
+Рабочие аккаунты добавляются после первого эксперимента. Внешний доступ пока
+не настроен; команды ниже выполняются владельцем в своих аккаунтах.
 
-1. Создать Google Cloud service account, включить Google Calendar API и сохранить
-   JSON-ключ в приватном месте, например `~/.x-cli-gallendar/secrets/service-account.json`.
-   Ограничить права файла до `0600`; ключ не добавлять в Git.
-2. В каждом тестовом аккаунте создать отдельный календарь копий. Поделиться
-   исходным календарём с email сервисного аккаунта с правом чтения событий,
-   календарём копий — с правом изменения событий. Одного free/busy-доступа
-   недостаточно для фильтрации приглашений и типов событий.
-3. Выполнить `gallendar setup`, заполнить `owner_email`, явные Google Calendar ID
-   для `source` и `target`, путь к ключу. `primary` не используется: у сервисного
-   аккаунта это другой календарь. Относительный путь ключа считается от конфига.
-4. Явно выбрать `horizon_days`, `poll_seconds`, `all_day_policy`. Пример содержит
-   30 дней, 60 секунд и `out_of_office_only`; это редактируемые значения примера,
-   а не утверждённые бизнес-правила. Namespace нужно сохранять стабильным.
-5. Проверить доступ и план без изменения событий:
+### 1. Проверить локальный бинарник
+
+В каталоге проекта:
+
+```bash
+make build-local
+./gallendar --version
+./gallendar demo
+```
+
+Это оптимизированная сборка для текущего Mac, без релизного коммита, тега или
+публикации. Файл `./gallendar` не включается в Git. Для установки в PATH:
+
+```bash
+make install-local
+export PATH="$HOME/.x-cli-gallendar/bin:$PATH"
+gallendar --version
+```
+
+После изменения исходников `make build-local` обновляет `./gallendar`, а
+`make install-local` — установленную копию. Далее команды используют `gallendar`;
+вместо него можно писать `./gallendar` из проекта. Конфиг у обеих копий общий.
+
+### 2. Создать Google Cloud проект и включить API
+
+Открыть [Google Cloud Console](https://console.cloud.google.com/) под личным
+аккаунтом A. В переключателе проектов выбрать New project, задать имя, например
+`gallendar-personal`, создать проект и убедиться, что он выбран.
+
+В APIs & Services → Library найти **Google Calendar API** и нажать Enable.
+[Страница API](https://console.cloud.google.com/apis/library/calendar-json.googleapis.com).
+Сам CLI работает локально; создавать VM или Cloud Run для этого шага не нужно.
+[Документация включения API](https://developers.google.com/workspace/calendar/api/quickstart/python#enable_the_api).
+
+### 3. Создать сервисную учётную запись и скачать JSON
+
+Открыть IAM & Admin → Service Accounts → Create service account.
+Задать имя, например `gallendar-sync`, и завершить создание. Дополнительные
+роли доступа к Cloud-проекту на этом этапе оставить пустыми: доступ к событиям
+выдаётся в Google Calendar. Скопировать email новой учётной записи вида
+`gallendar-sync@PROJECT_ID.iam.gserviceaccount.com`.
+[Создание service account](https://docs.cloud.google.com/iam/docs/service-accounts-create).
+
+Открыть эту учётную запись → Keys → Add key → Create new key → JSON → Create.
+Браузер скачает JSON-файл. Он содержит приватный ключ: оставить его локально,
+не отправлять в чат и не включать в Git.
+[Создание JSON-ключа](https://docs.cloud.google.com/iam/docs/keys-create-delete).
+
+Если создание service account или ключа запрещено политикой организации,
+сохранить текст ошибки и остановить этот шаг. Это конкретный блокер;
+не менять корпоративные ограничения ради продолжения инструкции.
+
+### 4. Положить ключ в каталог приложения
+
+В терминале, заменив имя файла на фактически скачанное:
+
+```bash
+mkdir -p "$HOME/.x-cli-gallendar/secrets"
+chmod 700 "$HOME/.x-cli-gallendar/secrets"
+mv -n "$HOME/Downloads/ИМЯ_СКАЧАННОГО_КЛЮЧА.json" \
+  "$HOME/.x-cli-gallendar/secrets/service-account.json"
+chmod 600 "$HOME/.x-cli-gallendar/secrets/service-account.json"
+```
+
+`mv -n` сохраняет уже существующий ключ. Если он есть, убедиться, что выбран
+нужный service account, прежде чем использовать другой ключ. Путь в конфиге
+можно указать абсолютный; символ `~` в TOML не раскрывается. Путь
+`secrets/service-account.json` считается от каталога `config.toml`.
+
+### 5. Подготовить календари в обоих аккаунтах
+
+Открыть [Google Calendar](https://calendar.google.com/) в браузере отдельно
+под A и B. В каждом аккаунте слева у Other calendars нажать `+` → Create new
+calendar. Назвать календарь, например `gallendar Busy — A` / `gallendar Busy — B`.
+Создавать его нужно от лица владельца аккаунта, чтобы календарь принадлежал ему.
+[Создание календаря](https://support.google.com/calendar/answer/37095).
+
+Затем в каждом аккаунте открыть Settings and sharing нужного календаря →
+Shared with / Share with specific people or groups → Add people and groups.
+Добавить **email service account** из шага 3 и выдать:
+
+| Календарь | Разрешение сервисному аккаунту |
+|---|---|
+| Основной календарь с оригиналами | See all event details — чтение событий |
+| Новый календарь копий | Make changes to events — изменение событий |
+
+Повторить для A и B. Service account не требует ручного входа в Gmail;
+в CLI используется скачанный ключ. Проверка фактического доступа — шаг 7.
+[Разрешения sharing](https://support.google.com/calendar/answer/37082?hl=en).
+
+В настройках каждого из четырёх календарей открыть **Integrate calendar →
+Calendar ID** и скопировать ID. Основной ID часто равен email владельца;
+ID вторичного календаря обычно заканчивается на `@group.calendar.google.com`.
+Использовать именно поле Calendar ID, а не iCal URL или ссылку для браузера.
+[Где найти Calendar ID](https://support.google.com/calendar/answer/44105?hl=en-GB).
+
+Для эксперимента дополнительно поделиться основным календарём A с аккаунтом B,
+а основным B — с A с разрешением **See only free/busy**. Это права наблюдателей,
+отдельные от прав service account. Они нужны для сравнения доступности гостей.
+[Проверка доступности другого пользователя](https://support.google.com/calendar/answer/6294878).
+
+### 6. Заполнить локальный конфиг
+
+```bash
+gallendar setup --no-edit
+gallendar config
+nano "$HOME/.x-cli-gallendar/config.toml"
+```
+
+Если конфиг уже существует, setup его сохраняет. Заполнить его по образцу,
+заменив все значения с `REPLACE` на реальные email и Calendar ID:
+
+```toml
+service_account_key = "secrets/service-account.json"
+namespace = "gallendar-personal"
+horizon_days = 30
+poll_seconds = 60
+all_day_policy = "out_of_office_only"
+
+[[accounts]]
+name = "personal-a"
+owner_email = "REPLACE-A@gmail.com"
+source = "REPLACE-A@gmail.com"
+target = "REPLACE-A@group.calendar.google.com"
+
+[[accounts]]
+name = "personal-b"
+owner_email = "REPLACE-B@gmail.com"
+source = "REPLACE-B@gmail.com"
+target = "REPLACE-B@group.calendar.google.com"
+```
+
+owner_email — email человека, а не сервисного аккаунта. source — календарь
+оригиналов этого человека; target — его отдельный календарь копий. Не подставлять
+`primary`: для service account он обозначает другой календарь.
+
+Для первого теста подходят обычные события с началом и концом по часам.
+`out_of_office_only` пропускает обычные события на весь день и оставляет all-day
+только типа Out of Office. Если нужно переносить обычные Busy all-day,
+оператор явно выбирает `busy`; типы birthday и workingLocation всё равно
+исключаются. Значения 30 дней и 60 секунд — редактируемые параметры примера.
+Namespace после начала синхронизации сохранять стабильным.
+
+По умолчанию конфиг находится в `~/.x-cli-gallendar/config.toml`.
+`GALLENDAR_CONFIG` задаёт другой путь, а `--config PATH` имеет приоритет над ним.
+
+### 7. Проверить интеграцию без записи
 
 ```bash
 gallendar doctor
-gallendar sync
-# Эквивалентная явная форма:
 gallendar sync --dry-run
 ```
 
-Конфиг по умолчанию — `~/.x-cli-gallendar/config.toml`; переопределение через
-`GALLENDAR_CONFIG` или глобальный `--config PATH` (флаг имеет приоритет).
-`--json` даёт машинный JSON для диагностики и путей/версии; периодический режим
-выдаёт по одному JSON на строку. Обновление и открытие редактора не поддерживают
-`--json`.
-`doctor` проверяет чтение и роли доступа, но не утверждает, что запись и
-доступность аккаунта проверены реальным сценарием.
+Ожидается `ready: true`, source_readable и target_writable для обоих аккаунтов.
+Для источника допустим reader, для назначения — writer или owner
+(поддерживается также writerWithoutPrivateAccess). doctor проверяет роли,
+но пока не создаёт событий и не доказывает доступность аккаунта.
+
+Dry-run показывает create/update/delete/unchanged. Это события обоих источников
+на весь выбранный горизонт, поэтому create может быть больше одного.
+До записи проверить, что настроены правильные исходные календари и назначения.
+Содержание оригиналов в вывод не попадает.
+
+Типичные причины ошибок:
+
+| Результат | Что проверить |
+|---|---|
+| Ошибка конфига / placeholders | Заполнены ли все REPLACE, email, явные Calendar ID и обязательные поля |
+| Cannot read service-account key | Файл существует, путь считается от конфига, TOML не использует `~` |
+| Invalid service-account JSON | Скачан JSON именно сервисного аккаунта |
+| Ошибка авторизации | Ключ действующий, service account включён, системные часы корректны |
+| HTTP 403 при чтении событий | Calendar API включён в проекте ключа; source/target выданы правильные права |
+| HTTP 404 | Calendar ID правильный; календарь расшарен нужному service account |
+| ready: false | Источник имеет чтение событий, а target — изменение событий |
+| Another gallendar process | Остановить run для этого конфига перед отдельным sync |
+
+При неизвестной ошибке сохранить вывод команды без содержания JSON-ключа;
+готовность интеграции не выводить только из настроек UI.
+
+### 8. Проверить гипотезу о доступности
+
+Выбрать свободный будущий интервал в пределах горизонта. Создать черновик
+события в A, добавить B как гостя и открыть Find a time; приглашение не отправлять.
+Проверять именно строку B, а не общую сетку календарей.
+
+Сначала создать временный Busy в основном календаре B: A должен увидеть B
+занятым. Удалить контрольное событие и убедиться, что B снова свободен.
+Затем создать такой же временный `Busy` только в календаре копий B и повторить
+наблюдение из A. Проверить скрытие календаря копий, перенос и удаление блока;
+повторить в обратном направлении. Используемые страницы бронирования проверяются
+отдельно. Полный протокол: [business/validation.md](business/validation.md).
+
+Если B остаётся свободным, это NO-GO вторичных календарей: авторизация может
+работать, но основной продуктовый результат не достигнут. Не подтверждать
+availability-confirmed; сначала пересмотреть назначение Busy-копий.
+
+Перед синхронизацией убрать ручные тестовые блоки. CLI не управляет вручную
+созданными событиями без его приватных меток. Успех этой проверки на личных
+аккаунтах не заменяет проверку рабочих аккаунтов.
+
+### 9. Проверить запись и включить периодическую работу
+
+Только после GO создать обычное Busy-событие в источнике A, без гостей,
+на свободный будущий интервал. Посмотреть dry-run и затем применить:
+
+```bash
+gallendar sync --dry-run
+gallendar sync --apply --availability-confirmed
+```
+
+В календаре копий B должен появиться `Busy`; источник сохраняет оригинал.
+CLI подтверждает read-back; дополнительно посмотреть событие в Google Calendar
+и доступность B из другого аккаунта. Повторный sync не создаёт дубликата.
+Перенести оригинал, повторить sync и проверить перенос копии; удалить оригинал,
+повторить sync и проверить исчезновение его копии. Повторить B → A.
+
+После этого запустить в терминале:
+
+```bash
+gallendar run --apply --availability-confirmed
+```
+
+Процесс работает, пока открыт и запущен; Ctrl-C останавливает его. Для фоновой
+работы после закрытия терминала понадобится отдельная настройка запуска на Mac
+или VPS — локальный foreground run сам этого не обеспечивает.
+
+Диагностическая команда availability требует --account NAME и --start/--end
+в RFC3339 с явным UTC offset. Для пользовательских времён использовать
+Europe/Warsaw и смещение для выбранной даты. Она отдельно показывает busy
+источника и копий, не доказывая суммарную доступность аккаунта.
+
+`--json` даёт машинный JSON для диагностики и путей/версии; run выдаёт по одному
+JSON на строку. update и открытие редактора не поддерживают этот флаг.
 
 ## Синхронизация и проверка гипотезы
 
@@ -127,6 +335,7 @@ make install       # зависимости из Cargo.lock
 make check         # fmt-check, check, clippy, tests, release build, shell syntax
 make build
 make build-release
+make build-local   # оптимизированный бинарник в ./gallendar без публикации
 make test
 make lint
 make fmt

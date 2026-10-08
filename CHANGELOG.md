@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- Добавлены локальная сборка через `make build-local` в `./gallendar` и пошаговая
+  инструкция подключения Google Cloud и двух личных Google Calendar аккаунтов.
+
 - Добавлен рабочий Rust CLI: setup/config/home/version/update, demo, doctor,
   dry-run, sync, run и диагностика free/busy.
 - Добавлены Busy-копии с приватными метками, фильтрация приглашений, обработка

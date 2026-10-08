@@ -27,3 +27,4 @@ service-account*.json
 
 /config.toml
 /gallendar.lock
+/gallendar

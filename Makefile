@@ -11,7 +11,7 @@ VERSION := $(shell sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n 1)
 ARGS ?=
 export CARGO_TARGET_DIR
 
-.PHONY: install install-local deps-update build build-release typecheck lint fmt test check run version package-release smoke-install release release-push
+.PHONY: install install-local deps-update build build-release build-local typecheck lint fmt test check run version package-release smoke-install release release-push
 
 install:
 	cargo fetch --locked
@@ -24,6 +24,9 @@ build:
 
 build-release:
 	cargo build --release --locked
+
+build-local: build-release
+	cp "$(CARGO_TARGET_DIR)/release/$(BIN_NAME)" "$(CURDIR)/$(BIN_NAME)"
 
 typecheck:
 	cargo check --locked --all-targets
