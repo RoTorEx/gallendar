@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-13
+
 - Added destination `retired_targets` for recoverable migration from secondary
   mirrors to an explicit primary calendar. Read all calendars before writing,
   verify new copies before deleting old managed copies, and preserve foreign events.
