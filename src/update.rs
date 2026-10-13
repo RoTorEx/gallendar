@@ -115,20 +115,13 @@ fn run_locked(repo: Option<String>, automatic: bool) -> Result<()> {
         .build()?;
 
     if automatic {
-        let release: serde_json::Value = client
-            .get(format!(
-                "https://api.github.com/repos/{repo}/releases/latest"
-            ))
-            .header(reqwest::header::USER_AGENT, "gallendar")
+        // The public redirect avoids unauthenticated API rate limits and needs no token.
+        let response = client
+            .head(format!("https://github.com/{repo}/releases/latest"))
             .timeout(std::time::Duration::from_secs(10))
             .send()?
-            .error_for_status()?
-            .json()?;
-        let tag = release
-            .get("tag_name")
-            .and_then(|v| v.as_str())
-            .context("Latest release has no tag")?;
-        let latest = version_number(&format!("gallendar {}", tag.trim_start_matches('v')))?;
+            .error_for_status()?;
+        let latest = version_from_release_url(response.url(), &repo)?;
         let current = version_number(&format!("gallendar {}", env!("CARGO_PKG_VERSION")))?;
         if latest <= current {
             return Ok(());
@@ -257,6 +250,23 @@ fn read_version(binary: &Path) -> Result<String> {
 
 fn valid_version_output(version: &str) -> bool {
     version_number(version).is_ok()
+}
+
+fn version_from_release_url(url: &reqwest::Url, repo: &str) -> Result<[u64; 3]> {
+    if url.scheme() != "https" || url.host_str() != Some("github.com") {
+        bail!("Latest release redirected outside GitHub");
+    }
+    let (repository, tag) = url
+        .path()
+        .rsplit_once("/releases/tag/")
+        .context("Latest release did not redirect to a version tag")?;
+    if !repository.eq_ignore_ascii_case(&format!("/{repo}")) {
+        bail!("Latest release redirected to another repository");
+    }
+    let version = tag
+        .strip_prefix('v')
+        .context("Release tag must start with v")?;
+    version_number(&format!("gallendar {version}"))
 }
 
 fn version_number(text: &str) -> Result<[u64; 3]> {
@@ -482,5 +492,25 @@ mod tests {
         assert!(extract_binary(&duplicate, &destination).is_err());
         let symlink = archive(&[(APP_NAME, tar::EntryType::Symlink, b"")]);
         assert!(extract_binary(&symlink, &destination).is_err());
+    }
+    #[test]
+    fn public_latest_redirect_validates_repository_and_version() {
+        let repo = "RoTorEx/gallendar";
+        let url = reqwest::Url::parse("https://github.com/RoTorEx/gallendar/releases/tag/v0.1.1")
+            .unwrap();
+        assert_eq!(version_from_release_url(&url, repo).unwrap(), [0, 1, 1]);
+        assert_eq!(
+            version_from_release_url(&url, "rotorex/gallendar").unwrap(),
+            [0, 1, 1]
+        );
+        for text in [
+            "https://github.com/RoTorEx/gallendar/releases/latest",
+            "https://github.com/other/gallendar/releases/tag/v0.1.1",
+            "https://example.com/RoTorEx/gallendar/releases/tag/v0.1.1",
+            "https://github.com/RoTorEx/gallendar/releases/tag/beta",
+            "https://github.com/RoTorEx/gallendar/releases/tag/v0.1.1-extra",
+        ] {
+            assert!(version_from_release_url(&reqwest::Url::parse(text).unwrap(), repo).is_err());
+        }
     }
 }
