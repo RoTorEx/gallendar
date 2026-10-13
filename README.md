@@ -24,8 +24,8 @@ mode = "masked"
 title = "Busy"
 ```
 
-`mode = "masked"` displays the `title` value, for example `Busy`, `Занят`, or
-`Aveni — занят`. `mode = "original"` keeps the source meeting's title;
+`mode = "masked"` displays the `title` value, for example `Busy`, `Unavailable`, or
+`Aveni — busy`. Titles can contain any Unicode text. `mode = "original"` keeps the source meeting's title;
 `title` is ignored in this mode. Description, attendees, location, and links
 are not copied. Copies keep Google visibility = private; whether the title is
 visible depends on the viewer's permissions. Changing the mode or title updates
