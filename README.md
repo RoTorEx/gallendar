@@ -69,10 +69,12 @@ gallendar sync --dry-run --details
 
 `calendar ensure` reuses an existing uniquely named calendar or explicitly creates
 one in Europe/Warsaw and reads its metadata back. It never creates events. Source
-logins and service-account support for explicit target IDs are preserved. For an explicitly authorized live verification before real account availability is
-accepted, use `gallendar sync --apply --live-trial --details`. This requires a named
-secondary calendar and records availability as unacknowledged; it does not establish GO.
-Ordinary production apply still requires `--availability-confirmed`.
+logins and service-account support for explicit target IDs are preserved.
+Start periodic synchronization with `gallendar run`; it writes immediately and
+repeats at `poll_seconds`. Use `gallendar run --dry-run` to preview periodically,
+`gallendar sync --dry-run --details` to preview once, or `gallendar sync --apply`
+to apply once. Availability acknowledgement flags have been removed. Real account
+availability remains a separate observation; starting the CLI does not prove it.
 
 A dry-run
 with `--details` shows mirrored titles, intervals, destination IDs and configured
@@ -232,10 +234,10 @@ To move to a server, log in on the Mac and transfer the OAuth client,
 the token directory, and the TOML over SSH, keeping permissions and relative paths. Do not run two
 writers of the same namespace at the same time. Prebuilt server builds are deferred for now;
 the current delivery platform is Apple Silicon. There is no autostart: run works while
-the process is alive. After verifying the destination's real availability:
+the process is alive. Start synchronization:
 
 ```bash
-gallendar run --apply --availability-confirmed
+gallendar run
 ```
 
 Optional colleagues are configured independently for each route:
@@ -478,8 +480,7 @@ repeat in the opposite direction. Booking pages in use are checked
 separately. Full protocol: [business/validation.md](business/validation.md).
 
 If B stays free, this is a NO-GO for secondary calendars: authorization may
-work, but the main product result is not achieved. Do not confirm
-availability-confirmed; first reconsider the destination of the Busy copies.
+work, but the main product result is not achieved. Reconsider the destination of the Busy copies.
 
 Remove the manual test blocks before synchronization. The CLI does not manage manually
 created events without its private markers. Success of this check on personal
@@ -487,12 +488,12 @@ accounts does not replace checking the work accounts.
 
 ### 9. Check writing and enable periodic operation
 
-Only after GO, create an ordinary Busy event in source A, without guests,
+For the route lifecycle check, create an ordinary Busy event in source A, without guests,
 in a free future interval. Review the dry-run and then apply:
 
 ```bash
 gallendar sync --dry-run
-gallendar sync --apply --availability-confirmed
+gallendar sync --apply
 ```
 
 `Busy` should appear in B's copies calendar; the source keeps the original.
@@ -504,7 +505,7 @@ repeat sync, and check that its copy disappeared. Repeat B → A.
 After that, run in the terminal:
 
 ```bash
-gallendar run --apply --availability-confirmed
+gallendar run
 ```
 
 The process works while it is open and running; Ctrl-C stops it. For background
@@ -526,8 +527,8 @@ Current checks and ambiguities: [TASK.md](TASK.md).
 After the external availability check, the write commands are available:
 
 ```bash
-gallendar sync --apply --availability-confirmed
-gallendar run --apply --availability-confirmed
+gallendar sync --apply
+gallendar run
 ```
 
 The flag confirms the check performed by the operator; the CLI cannot prove
@@ -569,6 +570,30 @@ the template starts with 7 days. Values outside that range are rejected before G
 than the interval, the next starts after it completes. Stop and restart `gallendar run`
 after changing the config. A source change can wait up to the configured interval
 plus pass duration under normal operation; real delay remains to be measured.
+
+## Local logs
+
+Every operational command automatically appends a private JSONL journal to
+`~/.x-cli-gallendar/logs/YYYY-MM-DD.jsonl`. File dates and timestamps use UTC;
+records include session and pass IDs, PID, command outcome, effective routes/window,
+full action plans (including titles and configured guests), each mutation attempt,
+verified result, failures, retry timing and graceful Ctrl-C shutdown. This happens
+without `--details`, redirection or a background launcher. OAuth tokens, client
+secrets, private keys and authorization URLs are not journaled. HTTP bodies and
+headers are not captured. Help/version flags parsed by Clap do not create a session.
+
+The directory is 0700 and files are 0600. Each record is locked and synced to disk
+before proceeding; failed logging stops the process before the next mutation.
+A failed mutation or a missing completion record may indicate an uncertain remote
+outcome; reconcile again rather than recreating copies manually. Daily files are
+retained until explicitly removed by the owner; no history is silently deleted.
+The existing updater keeps its additional diagnostics in `update.log`.
+
+To follow today's journal:
+
+```bash
+tail -f "$HOME/.x-cli-gallendar/logs/$(date -u +%F).jsonl"
+```
 
 ## Checks and build
 

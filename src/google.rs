@@ -523,6 +523,10 @@ impl CalendarApi for Google {
         // Remote logical keys survive crashes and restarts. Fresh Google IDs allow
         // recreation after a deletion, whose original ID remains tombstoned.
         let id = format!("gld{}", uuid::Uuid::new_v4().simple());
+        crate::logging::event(
+            "copy_identity",
+            json!({"target":calendar,"id":id,"key":busy.key}),
+        )?;
         let mut url = self.events_url(calendar, None)?;
         url.query_pairs_mut().append_pair(
             "sendUpdates",

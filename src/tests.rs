@@ -267,7 +267,18 @@ fn uncertain_create_outcome_recovers_without_duplicates_or_early_deletes() {
     assert_eq!(replacement.counts.create, 3);
     assert_eq!(replacement.counts.delete, 3);
     let mut fault = UnknownOutcome { inner: memory };
-    assert!(engine::apply(&mut fault, &replacement).is_err());
+    let mut audit = Vec::new();
+    assert!(
+        engine::apply_with_reporter(&mut fault, &replacement, |_, stage, error| {
+            audit.push((stage.to_owned(), error.map(|e| e.to_string())));
+            Ok(())
+        })
+        .is_err()
+    );
+    assert_eq!(audit.len(), 2);
+    assert_eq!(audit[0].0, "operation_started");
+    assert_eq!(audit[1].0, "operation_failed");
+    assert!(audit[1].1.as_ref().unwrap().contains("Response lost"));
     let managed_after_failure: usize = config
         .accounts
         .iter()
@@ -706,31 +717,51 @@ fn named_calendar_config_accepts_empty_target_but_requires_destination_oauth() {
 }
 
 #[test]
-fn live_trial_requires_explicit_apply_and_a_named_secondary_destination() {
-    let (mut config, _) = mirror_fixture();
-    let parsed = Cli::try_parse_from(["gallendar", "sync", "--apply"]).unwrap();
-    let Some(Command::Sync(args)) = parsed.command else {
-        panic!("sync command")
-    };
-    assert!(validate_apply(&config, &args).is_err());
-    assert!(Cli::try_parse_from(["gallendar", "sync", "--live-trial"]).is_err());
+fn audit_failure_stops_before_mutation_or_before_the_next_operation() {
+    let (config, mut api) = mirror_fixture();
+    let plan = engine::plan(&mut api, &config, &config.window(Utc::now())).unwrap();
+    assert_eq!(plan.counts.create, 2);
     assert!(
-        Cli::try_parse_from([
-            "gallendar",
-            "sync",
-            "--apply",
-            "--live-trial",
-            "--availability-confirmed"
-        ])
+        engine::apply_with_reporter(&mut api, &plan, |_, _, _| bail!("Log unavailable")).is_err()
+    );
+    assert!(!api.calendars.contains_key("clone-2"));
+    let mut stages = Vec::new();
+    assert!(
+        engine::apply_with_reporter(&mut api, &plan, |_, stage, _| {
+            stages.push(stage.to_owned());
+            if stage == "operation_verified" {
+                bail!("Disk full after read-back");
+            }
+            Ok(())
+        })
         .is_err()
     );
-    let parsed = Cli::try_parse_from(["gallendar", "sync", "--apply", "--live-trial"]).unwrap();
-    let Some(Command::Sync(args)) = parsed.command else {
-        panic!("sync command")
-    };
-    assert!(validate_apply(&config, &args).is_err());
-    config.mirror_calendar_name = Some("Gallendar".into());
-    validate_apply(&config, &args).unwrap();
+    assert_eq!(api.calendars["clone-2"].len(), 1);
+    assert_eq!(stages, vec!["operation_started", "operation_verified"]);
+    let remaining = engine::plan(&mut api, &config, &config.window(Utc::now())).unwrap();
+    assert_eq!(remaining.counts.create, 1);
+    assert_eq!(remaining.counts.unchanged, 1);
+}
+
+#[test]
+fn simple_run_applies_and_explicit_dry_run_preserves_preview_mode() {
+    for (arguments, periodic, writes) in [
+        (vec!["gallendar", "run"], true, true),
+        (vec!["gallendar", "run", "--dry-run"], true, false),
+        (vec!["gallendar", "run", "--apply"], true, true),
+        (vec!["gallendar", "sync"], false, false),
+        (vec!["gallendar", "sync", "--apply"], false, true),
+    ] {
+        let parsed = Cli::try_parse_from(arguments).unwrap();
+        let args = match parsed.command.unwrap() {
+            Command::Run(args) | Command::Sync(args) => args,
+            _ => panic!("sync/run command"),
+        };
+        assert_eq!(args.writes(periodic), writes);
+    }
+    assert!(Cli::try_parse_from(["gallendar", "run", "--apply", "--dry-run"]).is_err());
+    assert!(Cli::try_parse_from(["gallendar", "run", "--availability-confirmed"]).is_err());
+    assert!(Cli::try_parse_from(["gallendar", "run", "--live-trial"]).is_err());
 }
 
 #[test]

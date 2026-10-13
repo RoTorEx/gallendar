@@ -176,12 +176,25 @@ pub fn plan(api: &mut impl CalendarApi, config: &Config, window: &Window) -> Res
 }
 
 pub fn apply(api: &mut impl CalendarApi, plan: &Plan) -> Result<()> {
+    apply_with_reporter(api, plan, |_, _, _| Ok(()))
+}
+
+pub fn apply_with_reporter(
+    api: &mut impl CalendarApi,
+    plan: &Plan,
+    mut report: impl FnMut(&Action, &str, Option<&anyhow::Error>) -> Result<()>,
+) -> Result<()> {
     for (index, action) in plan.actions.iter().enumerate() {
+        report(action, "operation_started", None)?;
         let result = match action {
             Action::Create { target, busy } => api.create(target, busy, &plan.namespace),
             Action::Update { target, id, busy } => api.update(target, id, busy, &plan.namespace),
             Action::Delete { target, id } => api.delete(target, id, &plan.namespace),
         };
+        match &result {
+            Ok(()) => report(action, "operation_verified", None)?,
+            Err(error) => report(action, "operation_failed", Some(error))?,
+        }
         result.with_context(|| format!("Stopped at operation {} of {}; earlier verified changes remain, rerun sync to reconcile", index + 1, plan.actions.len()))?;
     }
     Ok(())

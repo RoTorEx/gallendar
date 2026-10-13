@@ -50,6 +50,14 @@ and no managed copies in the Innowise primary. A repeated plan had no changes.
 The required checks passed with 54 Rust tests, including prefix changes in both
 title modes, prefix removal, an empty original title and guest-response preservation.
 
+The user subsequently removed acknowledgement flags and requested automatic runtime
+logs. A real periodic preview with the prepared five-day horizon reported create=5,
+unchanged=8, update=0, delete=0 without writing to Google. Its private daily journal
+contained the complete plan despite omitting `--details`, and recorded graceful
+Ctrl-C shutdown. Required checks passed with 57 tests, covering plain-run defaults,
+daily/private/concurrent logging and stop-before-write when audit storage fails.
+The sole Apple Silicon archive passed the package/install preflight.
+
 **Acceptance remains incomplete.** A colleague's real Find a time view, booking
 aggregation, invitation acceptance, Dato hiding, live movement/cancellation
 and observed synchronization delay have not been checked. These results establish
@@ -70,7 +78,7 @@ The requested copies are intentionally retained for the user's live trial.
 4. Check moving and deleting the block, then the booking pages in use
    and other required tools. If the secondary calendar fails,
    propose the primary calendar; do not change the destination automatically.
-5. After the destination is confirmed, check the CLI with two routes: creating
+5. Check the CLI with two routes independently of the availability observation: creating
    an Aveni original, dry-run, apply, repeated pass, move, and deletion.
    Repeat for Thira. Copies must appear only in Innowise.
 6. Check that an existing Innowise meeting is preserved and not copied

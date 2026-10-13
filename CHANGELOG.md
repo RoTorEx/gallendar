@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+- Simplified launch to `gallendar run` with writes enabled by default; `--dry-run`
+  previews and one-shot `sync` still needs `--apply`. Removed availability acknowledgement
+  and live-trial flags without changing destination-only write protection.
+- Added private daily JSONL logs in CLI home with command/pass identities, full action
+  plans, per-operation attempts and verified results, errors, retries and graceful stops.
+  Durable logging failures stop further writes; credentials and authorization URLs are excluded.
+
 - Added per-route literal title prefixes for original and masked modes; changing
   a prefix updates the existing copy and preserves its identity and guest responses.
 

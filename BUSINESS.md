@@ -144,14 +144,29 @@ remain supported when the global name is absent.
 Its availability suitability remains unverified; do not claim the Innowise account is
 busy merely because a copy exists in this secondary calendar. Independently hiding copies is a secondary convenience.
 
-This design is not confirmed yet. An explicitly authorized live trial may create copies in the uniquely named owned
-secondary calendar before availability acceptance (`--apply --live-trial`). This is
-verification, not a GO result; its output records that availability is unacknowledged.
-Ordinary production applies retain the external availability acknowledgement requirement.
-Checking real scheduling scenarios is mandatory; the presence of a Busy event or a successful API request
-does not prove the account is unavailable. On NO-GO, the design is abandoned and
-a variant with copies in the primary calendars is proposed. There is no automatic switch
-to it.
+The user explicitly removed the availability-acknowledgement launch requirement.
+`gallendar run` starts applied synchronization without additional flags;
+`run --dry-run` previews. One-shot sync remains read-only unless `--apply` is supplied.
+Account availability is still an unverified product outcome, not an execution gate.
+Checking real scheduling scenarios remains useful: the presence of a Busy event
+or a successful API request does not prove the account is unavailable. A failing
+availability scenario calls for an explicit destination decision; the CLI never
+switches to primary calendars automatically.
+
+## Operational journal
+
+The CLI automatically writes private daily JSONL logs in its home `logs/` directory.
+They contain command/session/pass identity, effective routes and rolling window,
+complete copy-action plans, mutation attempts, Google read-back outcomes, errors,
+retry interval and graceful shutdown. This journal is local operational evidence;
+real titles and configured guest emails are permitted there for the user's review,
+but must not be copied into committed protocols. Credentials, authorization URLs,
+HTTP headers and bodies are excluded. Log files use 0600 and the directory 0700.
+Records are locked across processes and synced before proceeding; a logging failure
+stops execution before the next mutation. Daily UTC partitioning retains history
+without a deletion policy; cleanup belongs to the owner. Help flags do not start
+an operational session. This replaces the previous manually redirected run.log
+as the automatic runtime journal; historical run.log is preserved.
 
 ## Numeric decisions
 
@@ -170,13 +185,13 @@ after all calendars are read successfully. This is a limitation of the current C
 product boundary for past and future remains an open task. Recurrence
 identities account for the series and the occurrence's original start.
 
-- horizon_days: 1 to 30 days, with 7 days in the template; the current live trial uses 2 days.
+- horizon_days: 1 to 30 days, with 7 days in the template; the current prepared config uses 5 days.
   User decision: start with one rolling week from now and allow configuration
   up to 30 days. Invalid values are rejected before Google access. Reducing the
   window removes managed copies outside it on the next applied pass; source events
   are preserved. Boundary and rolling-window behavior are covered by Rust tests.
 - poll_seconds: positive integer seconds between pass starts; the template and current
-  live trial use 600 seconds (10 minutes). There is no additional product maximum.
+  config use 600 seconds (10 minutes). There is no additional product maximum.
   The first pass starts immediately. If a pass takes longer than the interval, the
   next one starts after it completes. Config changes take effect after restarting run.
   Real synchronization delay includes waiting for the next pass and its duration;

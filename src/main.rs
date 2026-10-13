@@ -2,6 +2,7 @@ mod config;
 mod demo;
 mod engine;
 mod google;
+mod logging;
 mod model;
 mod oauth;
 mod update;
@@ -80,9 +81,9 @@ enum Command {
     },
     /// Check source-read and destination-write roles without changing Google data
     Doctor,
-    /// Reconcile once; dry-run unless --apply is supplied
+    /// Reconcile once; preview unless --apply is supplied
     Sync(SyncArgs),
-    /// Periodically reconcile; dry-run unless --apply is supplied; Ctrl-C stops
+    /// Start synchronization immediately; --dry-run previews; Ctrl-C stops
     Run(SyncArgs),
     /// Compare primary and clone free/busy; this does not prove account aggregation
     Availability {
@@ -127,18 +128,18 @@ struct SyncArgs {
     /// Apply the displayed changes to Google instead of a dry-run
     #[arg(long, conflicts_with = "dry_run")]
     apply: bool,
-    /// Explicitly request the default read-only mode
+    /// Preview changes without writing to Google
     #[arg(long)]
     dry_run: bool,
-    /// Acknowledge that secondary-calendar availability was checked externally
-    #[arg(long, requires = "apply")]
-    availability_confirmed: bool,
-    /// Explicit live verification in a named secondary calendar before availability acceptance
-    #[arg(long, requires = "apply", conflicts_with = "availability_confirmed")]
-    live_trial: bool,
     /// Include mirrored titles, times, destinations and configured guests in the plan
     #[arg(long)]
     details: bool,
+}
+
+impl SyncArgs {
+    fn writes(&self, periodic: bool) -> bool {
+        !self.dry_run && (periodic || self.apply)
+    }
 }
 
 fn main() {
@@ -162,6 +163,7 @@ fn config_path(cli: &Cli) -> Result<PathBuf> {
 }
 
 fn print(value: Value, as_json: bool) -> Result<()> {
+    logging::event("output", value.clone())?;
     if as_json {
         println!("{}", serde_json::to_string(&value)?);
     } else {
@@ -224,40 +226,83 @@ fn lock(path: &Path) -> Result<File> {
     Ok(file)
 }
 
-fn validate_apply(config: &Config, args: &SyncArgs) -> Result<()> {
-    ensure!(
-        !args.apply || args.availability_confirmed || args.live_trial,
-        "Writing requires --availability-confirmed after the scheduling check, or --live-trial for explicit verification in a named secondary calendar"
-    );
-    ensure!(
-        !args.live_trial || config.mirror_calendar_name.is_some(),
-        "Live trial requires mirror_calendar_name for a separate destination calendar"
-    );
-    Ok(())
+fn action_details(action: &engine::Action) -> Value {
+    match action {
+        engine::Action::Create { target, busy } => {
+            json!({"action":"create", "target":target, "key":busy.key,
+            "title":busy.summary, "start":busy.start, "end":busy.end, "attendees":busy.attendees})
+        }
+        engine::Action::Update { target, id, busy } => {
+            json!({"action":"update", "target":target, "id":id, "key":busy.key,
+            "title":busy.summary, "start":busy.start, "end":busy.end, "attendees":busy.attendees})
+        }
+        engine::Action::Delete { target, id } => {
+            json!({"action":"delete", "target":target, "id":id})
+        }
+    }
 }
 
-fn sync(config: &Config, args: &SyncArgs, as_json: bool) -> Result<()> {
-    validate_apply(config, args)?;
+fn sync(config: &Config, args: &SyncArgs, as_json: bool, apply: bool) -> Result<()> {
+    let pass = uuid::Uuid::new_v4().to_string();
+    let started = Instant::now();
+    let window = config.window(Utc::now());
+    logging::event(
+        "pass_started",
+        json!({"pass":pass,"apply":apply,"start":window.start,"end":window.end}),
+    )?;
+    let result = sync_pass(config, args, as_json, apply, &pass, &window);
+    logging::event(
+        if result.is_ok() {
+            "pass_completed"
+        } else {
+            "pass_failed"
+        },
+        json!({"pass":pass,"duration_ms":started.elapsed().as_millis(),"error":result.as_ref().err().map(|e|format!("{e:#}"))}),
+    )?;
+    result
+}
+
+fn sync_pass(
+    config: &Config,
+    args: &SyncArgs,
+    as_json: bool,
+    apply: bool,
+    pass: &str,
+    window: &config::Window,
+) -> Result<()> {
     let mut resolved = config.clone();
     let mut api = google::Google::connect_resolved(&mut resolved)?;
     let config = &resolved;
-    let planned = engine::plan(&mut api, config, &config.window(Utc::now()))?;
-    // Always expose intended changes before mutating. No source contents in output.
-    let mut output = json!({ "mode": if args.apply { "apply-plan" } else { "dry-run" }, "changes": planned.counts });
+    let planned = engine::plan(&mut api, config, window)?;
+    let events: Vec<_> = planned.actions.iter().map(action_details).collect();
+    logging::event(
+        "plan",
+        json!({"pass":pass,"namespace":planned.namespace,"calendar_name":config.mirror_calendar_name,"changes":planned.counts,"events":events}),
+    )?;
+    let mut output =
+        json!({"mode":if apply {"apply-plan"} else {"dry-run"},"changes":planned.counts});
     if args.details {
-        output["events"] = json!(planned.actions.iter().map(|action| match action {
-            engine::Action::Create {target, busy} => json!({"action":"create", "target":target, "calendar_name":config.mirror_calendar_name,
-                "title":busy.summary, "start":busy.start, "end":busy.end, "attendees":busy.attendees}),
-            engine::Action::Update {target, id, busy} => json!({"action":"update", "target":target, "id":id, "calendar_name":config.mirror_calendar_name,
-                "title":busy.summary, "start":busy.start, "end":busy.end, "attendees":busy.attendees}),
-            engine::Action::Delete {target, id} => json!({"action":"delete", "target":target, "id":id}),
-        }).collect::<Vec<_>>());
+        output["events"] = json!(
+            events
+                .iter()
+                .map(|event| {
+                    let mut event = event.clone();
+                    event["calendar_name"] = json!(config.mirror_calendar_name);
+                    event
+                })
+                .collect::<Vec<_>>()
+        );
     }
     print(output, as_json)?;
-    if args.apply {
-        engine::apply(&mut api, &planned)?;
+    if apply {
+        engine::apply_with_reporter(&mut api, &planned, |action, stage, error| {
+            logging::event(
+                stage,
+                json!({"pass":pass,"operation":action_details(action),"error":error.map(|e|format!("{e:#}"))}),
+            )
+        })?;
         print(
-            json!({ "mode": "applied", "changes": planned.counts, "read_back_verified": true, "live_trial": args.live_trial, "availability_acknowledged": args.availability_confirmed }),
+            json!({"mode":"applied","changes":planned.counts,"read_back_verified":true}),
             as_json,
         )?;
     }
@@ -266,6 +311,41 @@ fn sync(config: &Config, args: &SyncArgs, as_json: bool) -> Result<()> {
 
 fn run() -> Result<()> {
     let cli = Cli::parse();
+    if cli.command.is_none() {
+        return run_cli(&cli);
+    }
+    logging::init(&home()?)?;
+    let command = match cli.command.as_ref().unwrap() {
+        Command::Setup { .. } => "setup",
+        Command::Config { .. } => "config",
+        Command::Home => "home",
+        Command::Version => "version",
+        Command::Update { .. } => "update",
+        Command::Auth { .. } => "auth",
+        Command::Calendar { .. } => "calendar",
+        Command::Doctor => "doctor",
+        Command::Sync(_) => "sync",
+        Command::Run(_) => "run",
+        Command::Availability { .. } => "availability",
+        Command::Demo => "demo",
+    };
+    logging::event(
+        "command_started",
+        json!({"command":command,"version":env!("CARGO_PKG_VERSION"),"config":config_path(&cli)?}),
+    )?;
+    let result = run_cli(&cli);
+    logging::event(
+        if result.is_ok() {
+            "command_completed"
+        } else {
+            "command_failed"
+        },
+        json!({"command":command,"error":result.as_ref().err().map(|e|format!("{e:#}"))}),
+    )?;
+    result
+}
+
+fn run_cli(cli: &Cli) -> Result<()> {
     let Some(command) = &cli.command else {
         Cli::command().print_help()?;
         println!();
@@ -296,7 +376,7 @@ fn run() -> Result<()> {
         Command::Demo => return print(demo::run()?, cli.json),
         _ => {}
     }
-    let path = config_path(&cli)?;
+    let path = config_path(cli)?;
     match command {
         Command::Setup { no_edit } => return setup(&path, *no_edit, cli.json),
         Command::Config { edit: should_edit } => {
@@ -329,6 +409,10 @@ fn run() -> Result<()> {
         };
     }
     let mut config = Config::load(&path)?;
+    logging::event(
+        "configured",
+        json!({"horizon_days":config.horizon_days,"poll_seconds":config.poll_seconds,"mirror_calendar_name":config.mirror_calendar_name,"routes":config.routes()}),
+    )?;
     if config.auto_update {
         update::start_automatic();
     }
@@ -392,10 +476,9 @@ fn run() -> Result<()> {
         }
         Command::Sync(args) => {
             let _lock = lock(&path)?;
-            sync(&config, args, cli.json)
+            sync(&config, args, cli.json, args.writes(false))
         }
         Command::Run(args) => {
-            validate_apply(&config, args)?;
             let _lock = lock(&path)?;
             let stopped = Arc::new(AtomicBool::new(false));
             let signal = stopped.clone();
@@ -404,7 +487,11 @@ fn run() -> Result<()> {
             })?;
             while !stopped.load(Ordering::SeqCst) {
                 let started = Instant::now();
-                if let Err(error) = sync(&config, args, cli.json) {
+                if let Err(error) = sync(&config, args, cli.json, args.writes(true)) {
+                    logging::event(
+                        "retry_scheduled",
+                        json!({"error":format!("{error:#}"),"poll_seconds":config.poll_seconds}),
+                    )?;
                     eprintln!("gallendar: sync failed: {error:#}; will retry next pass");
                 }
                 while !stopped.load(Ordering::SeqCst)
@@ -413,6 +500,7 @@ fn run() -> Result<()> {
                     std::thread::sleep(Duration::from_millis(100));
                 }
             }
+            logging::event("stopped", json!({"reason":"Ctrl-C"}))?;
             Ok(())
         }
         Command::Availability {
