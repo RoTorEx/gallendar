@@ -78,6 +78,7 @@ pub struct Snapshot {
 
 #[derive(Clone)]
 pub struct Busy {
+    pub summary: String,
     pub key: String,
     pub start: EventTime,
     pub end: EventTime,
@@ -156,6 +157,7 @@ impl Event {
             _ => self.id.clone(),
         };
         Ok(Some(Busy {
+            summary: "Busy".into(),
             key: digest(&[&account.source, &identity]),
             start,
             end,
@@ -179,7 +181,7 @@ impl Event {
         self.owned(namespace)
             && self.key() == Some(desired.key.as_str())
             && self.status != "cancelled"
-            && self.summary == "Busy"
+            && self.summary == desired.summary
             && self.transparency == "opaque"
             && self.visibility == "private"
             && self.attendees.is_empty()
@@ -206,7 +208,7 @@ impl Event {
 impl Busy {
     pub fn payload(&self, id: &str, namespace: &str) -> Value {
         // Construct from an allowlist. Never copy the original event object.
-        json!({ "id": id, "summary": "Busy", "status": "confirmed", "eventType": "default",
+        json!({ "id": id, "summary": self.summary, "status": "confirmed", "eventType": "default",
             "visibility": "private", "transparency": "opaque", "start": self.start, "end": self.end,
             "reminders": { "useDefault": false },
             "extendedProperties": { "private": { MANAGED: "v1", NAMESPACE: namespace, KEY: self.key } }

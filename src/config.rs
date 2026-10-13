@@ -17,6 +17,8 @@ pub struct Config {
     pub poll_seconds: u64,
     pub all_day_policy: AllDayPolicy,
     pub accounts: Vec<Account>,
+    #[serde(default)]
+    pub routes: Option<Vec<Route>>,
 }
 
 #[derive(Clone, Copy, Deserialize, Serialize)]
@@ -31,11 +33,71 @@ pub enum AllDayPolicy {
 pub struct Account {
     pub name: String,
     pub owner_email: String,
+    #[serde(default)]
     pub source: String,
+    #[serde(default)]
     pub target: String,
 }
 
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct Route {
+    pub from: String,
+    pub to: String,
+    #[serde(default)]
+    pub mode: MirrorMode,
+    #[serde(default = "default_title")]
+    pub title: String,
+}
+
+#[derive(Clone, Copy, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MirrorMode {
+    #[default]
+    Masked,
+    Original,
+}
+
+fn default_title() -> String {
+    "Busy".into()
+}
+
 impl Config {
+    pub fn routes(&self) -> Vec<Route> {
+        self.routes.clone().unwrap_or_else(|| {
+            self.accounts
+                .iter()
+                .flat_map(|from| {
+                    self.accounts
+                        .iter()
+                        .filter(move |to| from.name != to.name)
+                        .map(move |to| Route {
+                            from: from.name.clone(),
+                            to: to.name.clone(),
+                            mode: MirrorMode::Masked,
+                            title: default_title(),
+                        })
+                })
+                .collect()
+        })
+    }
+
+    pub fn sources(&self) -> Vec<&Account> {
+        let routes = self.routes();
+        self.accounts
+            .iter()
+            .filter(|a| routes.iter().any(|r| r.from == a.name))
+            .collect()
+    }
+
+    pub fn targets(&self) -> Vec<&Account> {
+        let routes = self.routes();
+        self.accounts
+            .iter()
+            .filter(|a| routes.iter().any(|r| r.to == a.name))
+            .collect()
+    }
+
     pub fn load(path: &Path) -> Result<Self> {
         let contents = std::fs::read_to_string(path)
             .context("Cannot read config; run `gallendar init` first")?;
@@ -57,7 +119,7 @@ impl Config {
     pub fn validate(&self) -> Result<()> {
         ensure!(
             (2..=4).contains(&self.accounts.len()),
-            "Configure 2 accounts for the experiment or 4 for the MVP (3 is also supported)"
+            "Configure between 2 and 4 accounts"
         );
         ensure!(
             !self.namespace.trim().is_empty(),
@@ -90,20 +152,55 @@ impl Config {
                     && owners.insert(account.owner_email.to_lowercase()),
                 "Each account needs a unique owner_email"
             );
-            for id in [&account.source, &account.target] {
+            for id in [&account.source, &account.target]
+                .into_iter()
+                .filter(|id| !id.is_empty())
+            {
                 ensure!(
                     !id.trim().is_empty() && id != "primary" && !id.contains("REPLACE"),
                     "Use explicit calendar IDs, not 'primary' or example placeholders"
                 );
             }
             ensure!(
-                sources.insert(&account.source),
+                account.source.is_empty() || sources.insert(&account.source),
                 "Source calendars must be unique"
             );
             ensure!(
-                targets.insert(&account.target),
+                account.target.is_empty() || targets.insert(&account.target),
                 "Target calendars must be unique"
             );
+        }
+        let routes = self.routes();
+        ensure!(!routes.is_empty(), "Configure at least one route");
+        let mut pairs = HashSet::new();
+        for route in &routes {
+            ensure!(
+                !matches!(route.mode, MirrorMode::Masked) || !route.title.trim().is_empty(),
+                "Masked route title must not be empty"
+            );
+            let from = self
+                .accounts
+                .iter()
+                .find(|a| a.name == route.from)
+                .context("Route refers to an unknown source account")?;
+            let to = self
+                .accounts
+                .iter()
+                .find(|a| a.name == route.to)
+                .context("Route refers to an unknown target account")?;
+            ensure!(
+                from.name != to.name,
+                "A route cannot mirror an account into itself"
+            );
+            ensure!(
+                !from.source.is_empty(),
+                "Route source needs a source calendar ID"
+            );
+            ensure!(
+                !to.target.is_empty(),
+                "Route target needs a target calendar ID"
+            );
+            ensure!(pairs.insert((&route.from, &route.to)), "Duplicate route");
         }
         ensure!(
             sources.is_disjoint(&targets),

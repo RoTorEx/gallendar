@@ -47,9 +47,12 @@ pub struct Plan {
 
 pub fn plan(api: &mut impl CalendarApi, config: &Config, window: &Window) -> Result<Plan> {
     let namespace = digest(&[&config.namespace]);
+    let source_accounts = config.sources();
+    let target_accounts = config.targets();
+    let routes = config.routes();
     let mut sources = Vec::new();
     // Read every source completely before considering any mutation.
-    for account in &config.accounts {
+    for account in &source_accounts {
         let snapshot = api.source(&account.source, window).with_context(|| {
             format!("Cannot read source '{}'; no changes applied", account.name)
         })?;
@@ -72,14 +75,14 @@ pub fn plan(api: &mut impl CalendarApi, config: &Config, window: &Window) -> Res
                     )
                 })?
             {
-                events.insert(busy.key.clone(), busy);
+                events.insert(busy.key.clone(), (busy, event.summary.clone()));
             }
         }
         sources.push(events);
     }
     // Read every target as well. Do not apply a partial plan if any read fails.
     let mut targets = Vec::new();
-    for account in &config.accounts {
+    for account in &target_accounts {
         let snapshot = api.clones(&account.target, &namespace).with_context(|| {
             format!("Cannot read target '{}'; no changes applied", account.name)
         })?;
@@ -95,11 +98,21 @@ pub fn plan(api: &mut impl CalendarApi, config: &Config, window: &Window) -> Res
     }
     let mut actions = Vec::new();
     let mut counts = Counts::default();
-    for (index, account) in config.accounts.iter().enumerate() {
+    for (index, account) in target_accounts.iter().enumerate() {
         let mut desired = BTreeMap::new();
         for (source_index, events) in sources.iter().enumerate() {
-            if index != source_index {
-                desired.extend(events.clone());
+            if let Some(route) = routes
+                .iter()
+                .find(|r| r.from == source_accounts[source_index].name && r.to == account.name)
+            {
+                for (key, (busy, original_title)) in events {
+                    let mut copy = busy.clone();
+                    copy.summary = match route.mode {
+                        crate::config::MirrorMode::Masked => route.title.clone(),
+                        crate::config::MirrorMode::Original => original_title.clone(),
+                    };
+                    desired.insert(key.clone(), copy);
+                }
             }
         }
         let mut seen = HashSet::new();

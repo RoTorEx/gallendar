@@ -17,7 +17,7 @@ use std::{collections::HashSet, path::Path, time::Duration};
 
 const TOKEN_URL: &str = "https://oauth2.googleapis.com/token";
 const API_URL: &str = "https://www.googleapis.com/calendar/v3/";
-const SOURCE_FIELDS: &str = "nextPageToken,timeZone,accessRole,items(id,status,eventType,transparency,start,end,recurringEventId,originalStartTime,attendees(email,responseStatus),extendedProperties)";
+const SOURCE_FIELDS: &str = "nextPageToken,timeZone,accessRole,items(id,summary,status,eventType,transparency,start,end,recurringEventId,originalStartTime,attendees(email,responseStatus),extendedProperties)";
 
 #[derive(Deserialize)]
 struct ServiceKey {
@@ -455,7 +455,7 @@ mod tests {
         assert!(requests[0].contains("singleEvents=true"));
         assert!(requests[1].contains("pageToken=next-page"));
         assert!(requests[0].contains("timeMin="));
-        assert!(!requests[0].contains("summary"));
+        assert!(requests[0].contains("summary"));
     }
 
     #[test]

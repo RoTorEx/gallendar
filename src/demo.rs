@@ -94,6 +94,7 @@ pub fn fixture() -> (Config, Memory) {
             poll_seconds: 60,
             all_day_policy: AllDayPolicy::Busy,
             accounts,
+            routes: None,
         },
         memory,
     )

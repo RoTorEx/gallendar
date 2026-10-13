@@ -292,3 +292,130 @@ fn uncertain_create_outcome_recovers_without_duplicates_or_early_deletes() {
         12
     );
 }
+
+fn mirror_fixture() -> (Config, demo::Memory) {
+    let (mut config, api) = demo::fixture();
+    config.accounts.truncate(3);
+    config.accounts[0].target.clear();
+    config.accounts[1].target.clear();
+    config.accounts[2].source.clear();
+    config.routes = Some(vec![
+        config::Route {
+            from: "account-0".into(),
+            to: "account-2".into(),
+            mode: config::MirrorMode::Masked,
+            title: "Aveni Busy".into(),
+        },
+        config::Route {
+            from: "account-1".into(),
+            to: "account-2".into(),
+            mode: config::MirrorMode::Original,
+            title: "Busy".into(),
+        },
+    ]);
+    config.validate().unwrap();
+    (config, api)
+}
+
+#[test]
+fn directed_mirror_titles_moves_deletes_and_mode_changes() {
+    let (mut config, mut api) = mirror_fixture();
+    // Same IDs and overlapping intervals in distinct sources remain independent.
+    let second = api.calendars["source-0"][0].clone();
+    api.calendars.insert("source-1".into(), vec![second]);
+    api.calendars.get_mut("source-1").unwrap()[0].summary = "Thira meeting".into();
+    // A read of Innowise as a source would fail: it must only be a destination.
+    api.failing_calendar = Some("source-2".into());
+    let window = config.window(Utc::now());
+    let initial = engine::plan(&mut api, &config, &window).unwrap();
+    assert_eq!(initial.counts.create, 2);
+    engine::apply(&mut api, &initial).unwrap();
+    assert!(!api.calendars.contains_key("clone-0"));
+    assert!(!api.calendars.contains_key("clone-1"));
+    let titles: Vec<_> = api.calendars["clone-2"]
+        .iter()
+        .map(|e| e.summary.as_str())
+        .collect();
+    assert!(titles.contains(&"Aveni Busy"));
+    assert!(titles.contains(&"Thira meeting"));
+    assert!(
+        api.calendars["clone-2"]
+            .iter()
+            .all(|e| e.attendees.is_empty()
+                && !e.extra.contains_key("description")
+                && !e.extra.contains_key("conferenceData"))
+    );
+    assert!(
+        engine::plan(&mut api, &config, &window)
+            .unwrap()
+            .actions
+            .is_empty()
+    );
+    api.calendars.get_mut("source-1").unwrap()[0].summary = "Renamed Thira".into();
+    let renamed = engine::plan(&mut api, &config, &window).unwrap();
+    assert_eq!(renamed.counts.update, 1);
+    engine::apply(&mut api, &renamed).unwrap();
+    config.routes.as_mut().unwrap()[1].mode = config::MirrorMode::Masked;
+    config.routes.as_mut().unwrap()[1].title = "Unavailable".into();
+    let masked = engine::plan(&mut api, &config, &window).unwrap();
+    assert_eq!(masked.counts.update, 1);
+    engine::apply(&mut api, &masked).unwrap();
+    assert!(
+        !api.calendars["clone-2"]
+            .iter()
+            .any(|e| e.summary.contains("Thira"))
+    );
+    api.calendars.get_mut("source-0").unwrap()[0]
+        .start
+        .date_time = Some((Utc::now() + Duration::days(2)).to_rfc3339());
+    api.calendars.get_mut("source-0").unwrap()[0].end.date_time =
+        Some((Utc::now() + Duration::days(2) + Duration::hours(1)).to_rfc3339());
+    let moved = engine::plan(&mut api, &config, &window).unwrap();
+    assert_eq!(moved.counts.update, 1);
+    engine::apply(&mut api, &moved).unwrap();
+    api.calendars.get_mut("source-0").unwrap().clear();
+    let deleted = engine::plan(&mut api, &config, &window).unwrap();
+    assert_eq!(deleted.counts.delete, 1);
+    assert_eq!(deleted.counts.unchanged, 1);
+    engine::apply(&mut api, &deleted).unwrap();
+    assert_eq!(api.calendars["clone-2"].len(), 1);
+    api.failing_calendar = Some("source-1".into());
+    let writes = api.writes;
+    assert!(engine::plan(&mut api, &config, &window).is_err());
+    assert_eq!(api.writes, writes);
+}
+
+#[test]
+fn route_validation_and_new_toml_template() {
+    let filled = config::EXAMPLE.replace("REPLACE-", "test-");
+    let template: Config = toml::from_str(&filled).unwrap();
+    template.validate().unwrap();
+    assert_eq!(template.sources().len(), 2);
+    assert_eq!(template.targets()[0].name, "innowise");
+    let (config, _) = mirror_fixture();
+    for case in 0..6 {
+        let mut invalid = config.clone();
+        let routes = invalid.routes.as_mut().unwrap();
+        match case {
+            0 => routes[0].from = "unknown".into(),
+            1 => routes[0].to = routes[0].from.clone(),
+            2 => routes.push(routes[0].clone()),
+            3 => routes[0].to = "account-1".into(), // no target calendar
+            4 => routes[0].title = "  ".into(),
+            _ => routes.clear(),
+        }
+        assert!(invalid.validate().is_err());
+    }
+    let bad_mode = filled.replace("mode = \"masked\"", "mode = \"typo\"");
+    assert!(toml::from_str::<Config>(&bad_mode).is_err());
+    // Removing one route cleans up only that source's copies in the retained target.
+    let (mut config, mut api) = mirror_fixture();
+    let window = config.window(Utc::now());
+    let initial = engine::plan(&mut api, &config, &window).unwrap();
+    engine::apply(&mut api, &initial).unwrap();
+    config.routes.as_mut().unwrap().remove(0);
+    api.failing_calendar = Some("source-0".into());
+    let removed = engine::plan(&mut api, &config, &window).unwrap();
+    assert_eq!(removed.counts.delete, 1);
+    assert_eq!(removed.counts.unchanged, 1);
+}

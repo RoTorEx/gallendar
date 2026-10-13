@@ -261,20 +261,29 @@ fn run() -> Result<()> {
             let window = config.window(Utc::now());
             let mut checks = Vec::new();
             let mut ready = true;
-            for account in &config.accounts {
+            for account in config.sources() {
                 let source = api.source(&account.source, &window)?;
-                let target = api.clones(&account.target, &namespace)?;
                 let readable = matches!(
                     source.access_role.as_str(),
                     "reader" | "writer" | "writerWithoutPrivateAccess" | "owner"
                 );
+                ready &= readable;
+                checks.push(
+                    json!({ "account": account.name, "source_role": source.access_role,
+                    "source_readable": readable }),
+                );
+            }
+            for account in config.targets() {
+                let target = api.clones(&account.target, &namespace)?;
                 let writable = matches!(
                     target.access_role.as_str(),
                     "writer" | "writerWithoutPrivateAccess" | "owner"
                 );
-                ready &= readable && writable;
-                checks.push(json!({ "account": account.name, "source_role": source.access_role,
-                    "target_role": target.access_role, "source_readable": readable, "target_writable": writable }));
+                ready &= writable;
+                checks.push(
+                    json!({ "account": account.name, "target_role": target.access_role,
+                    "target_writable": writable }),
+                );
             }
             print(
                 json!({ "ready": ready, "checks": checks, "google_writes_tested": false,
@@ -332,8 +341,8 @@ fn run() -> Result<()> {
             let api = google::Google::connect(&config.service_account_key)?;
             print(
                 json!({ "account": account.name,
-                "source_busy": api.availability(&account.source, start, end)?,
-                "clone_busy": api.availability(&account.target, start, end)?,
+                "source_busy": if account.source.is_empty() { None } else { Some(api.availability(&account.source, start, end)?) },
+                "clone_busy": if account.target.is_empty() { None } else { Some(api.availability(&account.target, start, end)?) },
                 "account_aggregation_proven": false }),
                 cli.json,
             )

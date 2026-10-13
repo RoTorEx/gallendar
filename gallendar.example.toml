@@ -2,7 +2,7 @@
 # Relative paths are resolved relative to this config file.
 service_account_key = "secrets/service-account.json"
 # Keep this stable. Changing it makes existing clones belong to another instance.
-namespace = "gallendar-personal"
+namespace = "gallendar-work"
 # Explicit operator choices; these are example values, not settled product rules.
 horizon_days = 30
 poll_seconds = 60
@@ -10,14 +10,32 @@ poll_seconds = 60
 # "busy": include all-day Busy events, excluding birthday and workingLocation types.
 all_day_policy = "out_of_office_only"
 
+# Mirrors Busy intervals only, following moves and deletions.
 [[accounts]]
-name = "personal-a"
-owner_email = "REPLACE-A@gmail.com"
-source = "REPLACE-A@gmail.com"
-target = "REPLACE-A@group.calendar.google.com"
+name = "aveni"
+owner_email = "REPLACE-AVENI@example.com"
+source = "REPLACE-AVENI-CALENDAR-ID"
 
 [[accounts]]
-name = "personal-b"
-owner_email = "REPLACE-B@gmail.com"
-source = "REPLACE-B@gmail.com"
-target = "REPLACE-B@group.calendar.google.com"
+name = "thira"
+owner_email = "REPLACE-THIRA@example.com"
+source = "REPLACE-THIRA-CALENDAR-ID"
+
+[[accounts]]
+name = "innowise"
+owner_email = "REPLACE-INNOWISE@example.com"
+target = "REPLACE-INNOWISE-CALENDAR-ID"
+
+[[routes]]
+from = "aveni"
+to = "innowise"
+# "masked" uses title; "original" preserves the source event title only.
+mode = "masked"
+title = "Busy"
+
+[[routes]]
+from = "thira"
+to = "innowise"
+# "masked" uses title; "original" preserves the source event title only.
+mode = "masked"
+title = "Busy"
