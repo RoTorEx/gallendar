@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-13
+
 - Simplified launch to `gallendar run` with writes enabled by default; `--dry-run`
   previews and one-shot `sync` still needs `--apply`. Removed availability acknowledgement
   and live-trial flags without changing destination-only write protection.
