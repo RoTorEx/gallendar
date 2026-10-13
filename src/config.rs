@@ -17,6 +17,7 @@ pub struct Config {
     pub auth: AuthMode,
     pub oauth: Option<OAuthConfig>,
     pub namespace: String,
+    pub mirror_calendar_name: Option<String>,
     pub horizon_days: u32,
     pub poll_seconds: u64,
     pub all_day_policy: AllDayPolicy,
@@ -213,6 +214,12 @@ impl Config {
                 "Target calendars must be unique"
             );
         }
+        if let Some(name) = &self.mirror_calendar_name {
+            ensure!(
+                !name.trim().is_empty(),
+                "mirror_calendar_name must not be empty"
+            );
+        }
         let routes = self.routes();
         ensure!(!routes.is_empty(), "Configure at least one route");
         let mut pairs = HashSet::new();
@@ -240,9 +247,15 @@ impl Config {
                 "Route source needs a source calendar ID"
             );
             ensure!(
-                !to.target.is_empty(),
-                "Route target needs a target calendar ID"
+                !to.target.is_empty() || self.mirror_calendar_name.is_some(),
+                "Route target needs a target calendar ID or mirror_calendar_name"
             );
+            if self.mirror_calendar_name.is_some() {
+                ensure!(
+                    to.auth.unwrap_or(self.auth) == AuthMode::Oauth,
+                    "Named mirror calendars require OAuth on the destination account"
+                );
+            }
             if !route.attendees.is_empty() {
                 ensure!(
                     to.auth.unwrap_or(self.auth) == AuthMode::Oauth,
@@ -288,6 +301,14 @@ impl Config {
                 );
             }
             ensure!(pairs.insert((&route.from, &route.to)), "Duplicate route");
+        }
+        if self.mirror_calendar_name.is_some() {
+            let readers: HashSet<_> = routes.iter().map(|r| &r.from).collect();
+            let writers: HashSet<_> = routes.iter().map(|r| &r.to).collect();
+            ensure!(
+                readers.is_disjoint(&writers),
+                "Named mirror destinations cannot also be source accounts; synchronization must remain one-way"
+            );
         }
         ensure!(
             sources.is_disjoint(&targets),

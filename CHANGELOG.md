@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+- Enforced one-way account separation for named calendars and destination-only
+  writes at the Google HTTP boundary. Added create/update/delete and original-guest
+  preservation checks so named-calendar mode cannot write to source accounts or primary calendars.
+
+- Fixed live Google read-back: omitted transparency means the documented opaque
+  default, preventing false mismatches and repeated repairs of already busy copies.
+
+- Added an explicit live-trial apply mode restricted to named secondary calendars;
+  it records unacknowledged availability without marking the scheduling check accepted.
+
+- Added global `mirror_calendar_name` for an owned secondary destination found by
+  exact name on every pass; missing, duplicate or primary matches stop sync without
+  writes. Added explicit idempotent `calendar ensure` and `sync --details` previews.
+  Named destinations request additional OAuth scopes only for destination accounts.
+
 - Added per-route colleague email lists (`attendees`) for destination OAuth copies.
   Guest changes update existing copies; invitation updates and cancellations are sent,
   existing RSVP values are preserved, and unchanged passes do not re-invite guests.

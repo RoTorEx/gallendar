@@ -61,6 +61,7 @@ pub struct Google {
     token: String,
     base: String,
     tokens: HashMap<String, String>,
+    write_targets: HashSet<String>,
 }
 
 impl Google {
@@ -117,6 +118,7 @@ impl Google {
             token: token.access_token,
             base: API_URL.into(),
             tokens: HashMap::new(),
+            write_targets: HashSet::new(),
         })
     }
 
@@ -129,6 +131,7 @@ impl Google {
             token: String::new(),
             base: API_URL.into(),
             tokens: HashMap::new(),
+            write_targets: HashSet::new(),
         };
         for account in &config.accounts {
             if !config
@@ -148,6 +151,8 @@ impl Google {
                 AuthMode::Oauth => crate::oauth::access_token(config, account)
                     .with_context(|| format!("OAuth account {}", account.name))?,
             };
+            api.tokens
+                .insert(format!("account:{}", account.name), token.clone());
             for calendar in [&account.source, &account.target]
                 .into_iter()
                 .filter(|id| !id.is_empty())
@@ -155,7 +160,165 @@ impl Google {
                 api.tokens.insert(calendar.clone(), token.clone());
             }
         }
+        if config.mirror_calendar_name.is_none() {
+            api.write_targets
+                .extend(config.targets().iter().map(|a| a.target.clone()));
+        }
         Ok(api)
+    }
+
+    /// Resolve names before planning. This path never creates a calendar.
+    pub fn connect_resolved(config: &mut Config) -> Result<Self> {
+        let mut api = Self::connect_config(config)?;
+        if let Some(name) = config.mirror_calendar_name.clone() {
+            let targets: Vec<_> = config.targets().iter().map(|a| a.name.clone()).collect();
+            for account in targets {
+                let (id, _) = api.named_calendar(&account, &name, false)?;
+                config
+                    .accounts
+                    .iter_mut()
+                    .find(|a| a.name == account)
+                    .unwrap()
+                    .target = id;
+            }
+        }
+        config.validate()?;
+        Ok(api)
+    }
+
+    pub fn named_calendar(
+        &mut self,
+        account: &str,
+        name: &str,
+        create: bool,
+    ) -> Result<(String, bool)> {
+        let token_key = format!("account:{account}");
+        let mut matches = Vec::new();
+        let mut pages = HashSet::new();
+        let mut page_token: Option<String> = None;
+        loop {
+            let mut url = Url::parse(&format!("{}users/me/calendarList", self.base))?;
+            url.query_pairs_mut()
+                .append_pair("showHidden", "true")
+                .append_pair(
+                    "fields",
+                    "nextPageToken,items(id,summary,accessRole,primary)",
+                );
+            if let Some(token) = &page_token {
+                url.query_pairs_mut().append_pair("pageToken", token);
+            }
+            let response = self.request(&token_key, Method::GET, url, None, None)?;
+            ensure!(
+                response.status().is_success(),
+                "Cannot list calendars (HTTP {}); run auth login --account {} for named-calendar permissions",
+                response.status().as_u16(),
+                account
+            );
+            let page: Value = response.json().context("Invalid calendar list response")?;
+            let items = page["items"]
+                .as_array()
+                .context("Incomplete calendar list response")?;
+            matches.extend(
+                items
+                    .iter()
+                    .filter(|c| c["summary"].as_str() == Some(name))
+                    .cloned(),
+            );
+            match page["nextPageToken"].as_str() {
+                Some(token) if !token.is_empty() => {
+                    ensure!(
+                        pages.insert(token.to_owned()),
+                        "Repeated calendar list page; refusing incomplete results"
+                    );
+                    page_token = Some(token.to_owned());
+                }
+                _ => break,
+            }
+        }
+        ensure!(
+            matches.len() <= 1,
+            "Multiple calendars named '{}' in account {}; rename duplicates before syncing",
+            name,
+            account
+        );
+        let (calendar, created) = if let Some(calendar) = matches.pop() {
+            ensure!(
+                calendar["primary"] != Value::Bool(true),
+                "Named mirror calendar must be separate from the primary calendar"
+            );
+            ensure!(
+                calendar["accessRole"].as_str() == Some("owner"),
+                "Named mirror calendar must be owned by the destination account"
+            );
+            (calendar, false)
+        } else {
+            ensure!(
+                create,
+                "Calendar '{}' is missing in account {}; run calendar ensure --account {} first",
+                name,
+                account,
+                account
+            );
+            let url = Url::parse(&format!("{}calendars", self.base))?;
+            let response = self.request(
+                &token_key,
+                Method::POST,
+                url,
+                Some(&json!({"summary":name,"timeZone":"Europe/Warsaw"})),
+                None,
+            )?;
+            ensure!(
+                response.status().is_success(),
+                "Create mirror calendar failed (HTTP {}); inspect calendars before retrying",
+                response.status().as_u16()
+            );
+            let calendar: Value = response
+                .json()
+                .context("Invalid created calendar response")?;
+            let id = calendar["id"]
+                .as_str()
+                .filter(|s| !s.is_empty())
+                .context("Created calendar has no ID")?;
+            let mut url = Url::parse(&self.base)?;
+            url.path_segments_mut()
+                .map_err(|_| anyhow::anyhow!("Invalid API base"))?
+                .pop_if_empty()
+                .extend(["calendars", id]);
+            let response = self.request(&token_key, Method::GET, url, None, None)?;
+            ensure!(
+                response.status().is_success(),
+                "Created calendar read-back failed; inspect calendars before retrying"
+            );
+            let verified: Value = response.json().context("Invalid calendar read-back")?;
+            ensure!(
+                verified["id"] == calendar["id"]
+                    && verified["summary"].as_str() == Some(name)
+                    && verified["timeZone"] == "Europe/Warsaw",
+                "Created calendar differs on read-back"
+            );
+            (verified, true)
+        };
+        let id = calendar["id"]
+            .as_str()
+            .filter(|s| !s.is_empty())
+            .context("Named calendar has no ID")?
+            .to_owned();
+        ensure!(
+            id != "primary",
+            "Named mirror calendar must have an explicit ID"
+        );
+        let token = self.tokens.get(&token_key).unwrap_or(&self.token).clone();
+        self.tokens.insert(id.clone(), token);
+        self.write_targets.insert(id.clone());
+        Ok((id, created))
+    }
+
+    fn require_write_target(&self, calendar: &str) -> Result<()> {
+        ensure!(
+            self.write_targets.contains(calendar),
+            "Refusing calendar write outside configured resolved destinations"
+        );
+        Ok(())
     }
 
     fn events_url(&self, calendar: &str, id: Option<&str>) -> Result<Url> {
@@ -180,6 +343,13 @@ impl Google {
         payload: Option<&Value>,
         etag: Option<&str>,
     ) -> Result<Response> {
+        if method != Method::GET
+            && url
+                .path_segments()
+                .is_some_and(|mut segments| segments.any(|segment| segment == "events"))
+        {
+            self.require_write_target(calendar)?;
+        }
         let token = self.tokens.get(calendar).unwrap_or(&self.token);
         ensure!(
             !token.is_empty(),
@@ -349,6 +519,7 @@ impl CalendarApi for Google {
     }
 
     fn create(&mut self, calendar: &str, busy: &Busy, namespace: &str) -> Result<()> {
+        self.require_write_target(calendar)?;
         // Remote logical keys survive crashes and restarts. Fresh Google IDs allow
         // recreation after a deletion, whose original ID remains tombstoned.
         let id = format!("gld{}", uuid::Uuid::new_v4().simple());
@@ -377,6 +548,7 @@ impl CalendarApi for Google {
     }
 
     fn update(&mut self, calendar: &str, id: &str, busy: &Busy, namespace: &str) -> Result<()> {
+        self.require_write_target(calendar)?;
         let current = self
             .get(calendar, id)?
             .context("Clone disappeared during planning; rerun sync")?;
@@ -410,6 +582,7 @@ impl CalendarApi for Google {
     }
 
     fn delete(&mut self, calendar: &str, id: &str, namespace: &str) -> Result<()> {
+        self.require_write_target(calendar)?;
         let Some(current) = self.get(calendar, id)? else {
             return Ok(());
         };
@@ -509,10 +682,129 @@ mod tests {
                 token: "test-only-token".into(),
                 base,
                 tokens: HashMap::new(),
+                write_targets: HashSet::from(["target".into(), "clone-calendar".into()]),
             },
             handle,
             requests,
         )
+    }
+
+    #[test]
+    fn named_calendar_lookup_reads_all_pages_and_uses_destination_credentials() {
+        let (mut api, thread, requests) = server(vec![
+            (
+                200,
+                json!({"items":[{"id":"primary-id","summary":"Owner","primary":true}],"nextPageToken":"next"}),
+            ),
+            (
+                200,
+                json!({"items":[{"id":"secondary-id","summary":"Gallendar","accessRole":"owner"}]}),
+            ),
+        ]);
+        api.tokens
+            .insert("account:innowise".into(), "innowise-token".into());
+        assert_eq!(
+            api.named_calendar("innowise", "Gallendar", false).unwrap(),
+            ("secondary-id".into(), false)
+        );
+        assert_eq!(api.tokens["secondary-id"], "innowise-token");
+        thread.join().unwrap();
+        let requests = requests.lock().unwrap();
+        assert!(requests.iter().all(|r| {
+            r.starts_with("GET ")
+                && r.to_lowercase()
+                    .contains("authorization: bearer innowise-token")
+        }));
+        assert!(requests[1].contains("pageToken=next"));
+    }
+
+    #[test]
+    fn named_calendar_rejects_duplicates_missing_primary_and_wrong_owner_without_writes() {
+        for items in [
+            json!([]),
+            json!([{"id":"one","summary":"Gallendar","accessRole":"owner"},{"id":"two","summary":"Gallendar","accessRole":"owner"}]),
+            json!([{"id":"one","summary":"Gallendar","accessRole":"owner","primary":true}]),
+            json!([{"id":"one","summary":"Gallendar","accessRole":"writer"}]),
+        ] {
+            let (mut api, thread, requests) = server(vec![(200, json!({"items":items}))]);
+            assert!(api.named_calendar("innowise", "Gallendar", false).is_err());
+            thread.join().unwrap();
+            assert_eq!(requests.lock().unwrap().len(), 1);
+            assert!(requests.lock().unwrap()[0].starts_with("GET "));
+        }
+        let (mut api, thread, requests) = server(vec![
+            (200, json!({"items":[],"nextPageToken":"next"})),
+            (403, json!({})),
+        ]);
+        assert!(api.named_calendar("innowise", "Gallendar", true).is_err());
+        thread.join().unwrap();
+        assert!(
+            requests
+                .lock()
+                .unwrap()
+                .iter()
+                .all(|r| r.starts_with("GET "))
+        );
+    }
+
+    #[test]
+    fn explicit_named_calendar_creation_is_verified_and_idempotent() {
+        let calendar = json!({"id":"new-secondary","summary":"Gallendar","timeZone":"Europe/Warsaw","accessRole":"owner"});
+        let (mut api, thread, requests) = server(vec![
+            (200, json!({"items":[]})),
+            (200, calendar.clone()),
+            (200, calendar.clone()),
+            (200, json!({"items":[calendar]})),
+        ]);
+        assert_eq!(
+            api.named_calendar("innowise", "Gallendar", true).unwrap(),
+            ("new-secondary".into(), true)
+        );
+        assert_eq!(
+            api.named_calendar("innowise", "Gallendar", true).unwrap(),
+            ("new-secondary".into(), false)
+        );
+        thread.join().unwrap();
+        let requests = requests.lock().unwrap();
+        assert_eq!(
+            requests.iter().filter(|r| r.starts_with("POST ")).count(),
+            1
+        );
+        assert!(requests[1].contains("Europe/Warsaw"));
+        assert!(!requests[1].contains("/events"));
+        assert!(requests[2].starts_with("GET /calendar/v3/calendars/new-secondary "));
+    }
+
+    #[test]
+    fn source_and_primary_event_mutations_are_rejected_before_any_http_request() {
+        let (config, memory) = crate::demo::fixture();
+        let busy = memory.calendars["source-0"][0]
+            .busy(&config.accounts[0], "Europe/Warsaw", config.all_day_policy)
+            .unwrap()
+            .unwrap();
+        let (mut api, thread, requests) = server(vec![]);
+        thread.join().unwrap();
+        for calendar in ["source-0", "source-1", "primary", "innowise-primary"] {
+            assert!(
+                api.create(calendar, &busy, "namespace")
+                    .unwrap_err()
+                    .to_string()
+                    .contains("outside configured")
+            );
+            assert!(api.update(calendar, "id", &busy, "namespace").is_err());
+            assert!(api.delete(calendar, "id", "namespace").is_err());
+            assert!(
+                api.request(
+                    calendar,
+                    Method::POST,
+                    api.events_url(calendar, None).unwrap(),
+                    Some(&json!({})),
+                    None
+                )
+                .is_err()
+            );
+        }
+        assert!(requests.lock().unwrap().is_empty());
     }
 
     #[test]

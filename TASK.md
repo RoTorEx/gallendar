@@ -4,12 +4,9 @@ Scope: **Aveni & Thira → Innowise**. Rules: [BUSINESS.md](BUSINESS.md).
 
 ## Verify the result and launch
 
-- [ ] Obtain the Calendar ID of the separate gallendar calendar inside Innowise
-  and verify its owner/write permission; both routes must use this destination.
-
 - [ ] Verify Innowise availability from a real work scenario according to
   [business/validation.md](business/validation.md).
-- [ ] Go through creation, repeated pass, move, deletion, recurrences, and
+- [ ] Check live movement, deletion, recurrence exceptions, and
   restart separately for Aveni → Innowise and Thira → Innowise.
 - [ ] Agree on all-day, tentative, and how to detect a stop.
 - [ ] With a real colleague email configured for Aveni → Innowise, verify invitation

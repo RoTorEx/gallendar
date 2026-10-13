@@ -5,12 +5,37 @@ Queue: [TASK.md](../TASK.md).
 
 ## Current results
 
-**Availability and writes not verified.** OAuth login and source reads are verified for
-all three work accounts; the Innowise primary destination reports owner/write permission.
-The seven-day dry-run plans 19 copies without applying them. Colleague notifications
-are covered by local mock API tests, but real invitation delivery and colleague availability
-remain unverified. The current check applies to
-Aveni → Innowise and Thira → Innowise; personal accounts are not needed.
+**Live writes verified; account availability not accepted yet.** The check applies to
+Aveni → Innowise and Thira → Innowise; personal accounts are not involved.
+
+On 2026-10-13, by 15:49 Warsaw (CEST, UTC+02:00), the authorized two-day live
+trial was applied to the existing Gallendar secondary calendar owned by Innowise.
+All three OAuth owners and read/write roles were checked. The global calendar name
+resolved uniquely; no new calendar or primary-calendar copy was created.
+
+- Eight copies were read back: four from each source, with exact original titles
+  and intervals. Four Aveni copies contain only the configured colleague; four
+  Thira copies contain no guests. RSVP is needsAction; receipt and acceptance
+  on the colleague's side are not observed.
+- The first write exposed Google's omission of default opaque transparency.
+  The pass stopped after that saved copy; the comparison was corrected and tested.
+  Recovery reused it and created the remaining seven without duplicates.
+- Repeated dry-run and the first periodic applied pass reported create=0,
+  update=0, delete=0, unchanged=8. Periodic CLI run is active locally with a
+  rolling two-day horizon and 60-second polling; no autostart service was installed.
+- Independent API read-back matched every managed copy to its source key,
+  title, interval and configured guests. Every copy has Innowise as creator
+  and Gallendar as organizer. The Innowise primary has no copies in this namespace;
+  the two-day source snapshots have no managed copies or configured-colleague attendees.
+- The full required checks passed (52 tests), including source and primary
+  write rejection before HTTP, create/update/delete destination isolation,
+  original-guest preservation, notification requests and RSVP preservation.
+
+**Acceptance remains incomplete.** A colleague's real Find a time view, booking
+aggregation, invitation delivery/acceptance, Dato hiding, live movement/cancellation
+and observed synchronization delay have not been checked. These results establish
+saved copies and repeatability, not the Innowise account's aggregated busy time.
+The requested copies are intentionally retained for the user's live trial.
 
 ## Preparation and sequence
 

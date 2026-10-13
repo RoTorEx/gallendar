@@ -184,7 +184,7 @@ impl Event {
             && self.key() == Some(desired.key.as_str())
             && self.status != "cancelled"
             && self.summary == desired.summary
-            && self.transparency == "opaque"
+            && (self.transparency.is_empty() || self.transparency == "opaque")
             && self.visibility == "private"
             && {
                 let mut actual: Vec<_> = self

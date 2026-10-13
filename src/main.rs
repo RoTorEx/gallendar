@@ -73,6 +73,11 @@ enum Command {
         #[command(subcommand)]
         action: AuthAction,
     },
+    /// Find or explicitly create the globally named destination calendar
+    Calendar {
+        #[command(subcommand)]
+        action: CalendarAction,
+    },
     /// Check source-read and destination-write roles without changing Google data
     Doctor,
     /// Reconcile once; dry-run unless --apply is supplied
@@ -108,6 +113,15 @@ enum AuthAction {
     Status,
 }
 
+#[derive(Subcommand)]
+enum CalendarAction {
+    /// Reuse the named calendar or create it if absent; never create events
+    Ensure {
+        #[arg(long)]
+        account: String,
+    },
+}
+
 #[derive(Args)]
 struct SyncArgs {
     /// Apply the displayed changes to Google instead of a dry-run
@@ -119,6 +133,12 @@ struct SyncArgs {
     /// Acknowledge that secondary-calendar availability was checked externally
     #[arg(long, requires = "apply")]
     availability_confirmed: bool,
+    /// Explicit live verification in a named secondary calendar before availability acceptance
+    #[arg(long, requires = "apply", conflicts_with = "availability_confirmed")]
+    live_trial: bool,
+    /// Include mirrored titles, times, destinations and configured guests in the plan
+    #[arg(long)]
+    details: bool,
 }
 
 fn main() {
@@ -204,22 +224,40 @@ fn lock(path: &Path) -> Result<File> {
     Ok(file)
 }
 
-fn sync(config: &Config, args: &SyncArgs, as_json: bool) -> Result<()> {
+fn validate_apply(config: &Config, args: &SyncArgs) -> Result<()> {
     ensure!(
-        !args.apply || args.availability_confirmed,
-        "Writing requires --availability-confirmed after the real scheduling check; dry-run needs no acknowledgement"
+        !args.apply || args.availability_confirmed || args.live_trial,
+        "Writing requires --availability-confirmed after the scheduling check, or --live-trial for explicit verification in a named secondary calendar"
     );
-    let mut api = google::Google::connect_config(config)?;
+    ensure!(
+        !args.live_trial || config.mirror_calendar_name.is_some(),
+        "Live trial requires mirror_calendar_name for a separate destination calendar"
+    );
+    Ok(())
+}
+
+fn sync(config: &Config, args: &SyncArgs, as_json: bool) -> Result<()> {
+    validate_apply(config, args)?;
+    let mut resolved = config.clone();
+    let mut api = google::Google::connect_resolved(&mut resolved)?;
+    let config = &resolved;
     let planned = engine::plan(&mut api, config, &config.window(Utc::now()))?;
     // Always expose intended changes before mutating. No source contents in output.
-    print(
-        json!({ "mode": if args.apply { "apply-plan" } else { "dry-run" }, "changes": planned.counts }),
-        as_json,
-    )?;
+    let mut output = json!({ "mode": if args.apply { "apply-plan" } else { "dry-run" }, "changes": planned.counts });
+    if args.details {
+        output["events"] = json!(planned.actions.iter().map(|action| match action {
+            engine::Action::Create {target, busy} => json!({"action":"create", "target":target, "calendar_name":config.mirror_calendar_name,
+                "title":busy.summary, "start":busy.start, "end":busy.end, "attendees":busy.attendees}),
+            engine::Action::Update {target, id, busy} => json!({"action":"update", "target":target, "id":id, "calendar_name":config.mirror_calendar_name,
+                "title":busy.summary, "start":busy.start, "end":busy.end, "attendees":busy.attendees}),
+            engine::Action::Delete {target, id} => json!({"action":"delete", "target":target, "id":id}),
+        }).collect::<Vec<_>>());
+    }
+    print(output, as_json)?;
     if args.apply {
         engine::apply(&mut api, &planned)?;
         print(
-            json!({ "mode": "applied", "changes": planned.counts, "read_back_verified": true }),
+            json!({ "mode": "applied", "changes": planned.counts, "read_back_verified": true, "live_trial": args.live_trial, "availability_acknowledged": args.availability_confirmed }),
             as_json,
         )?;
     }
@@ -290,13 +328,32 @@ fn run() -> Result<()> {
             AuthAction::Status => print(oauth::status(&config), cli.json),
         };
     }
-    let config = Config::load(&path)?;
+    let mut config = Config::load(&path)?;
     if config.auto_update {
         update::start_automatic();
     }
     match command {
-        Command::Doctor => {
+        Command::Calendar {
+            action: CalendarAction::Ensure { account },
+        } => {
+            let _lock = lock(&path)?;
+            ensure!(
+                config.targets().iter().any(|a| &a.name == account),
+                "Account must be a configured route destination"
+            );
+            let name = config
+                .mirror_calendar_name
+                .as_deref()
+                .context("Set mirror_calendar_name in the global TOML section first")?;
             let mut api = google::Google::connect_config(&config)?;
+            let (id, created) = api.named_calendar(account, name, true)?;
+            print(
+                json!({"account":account,"calendar_name":name,"calendar_id":id,"created":created,"events_created":0}),
+                cli.json,
+            )
+        }
+        Command::Doctor => {
+            let mut api = google::Google::connect_resolved(&mut config)?;
             let namespace = model::digest(&[&config.namespace]);
             let window = config.window(Utc::now());
             let mut checks = Vec::new();
@@ -338,10 +395,7 @@ fn run() -> Result<()> {
             sync(&config, args, cli.json)
         }
         Command::Run(args) => {
-            ensure!(
-                !args.apply || args.availability_confirmed,
-                "Writing requires --availability-confirmed"
-            );
+            validate_apply(&config, args)?;
             let _lock = lock(&path)?;
             let stopped = Arc::new(AtomicBool::new(false));
             let signal = stopped.clone();
@@ -366,6 +420,7 @@ fn run() -> Result<()> {
             start,
             end,
         } => {
+            let api = google::Google::connect_resolved(&mut config)?;
             let account = config
                 .accounts
                 .iter()
@@ -378,7 +433,6 @@ fn run() -> Result<()> {
                 .context("end must be RFC3339 with an offset")?
                 .with_timezone(&Utc);
             ensure!(end > start, "end must be later than start");
-            let api = google::Google::connect_config(&config)?;
             print(
                 json!({ "account": account.name,
                 "source_busy": if account.source.is_empty() { None } else { Some(api.availability(&account.source, start, end)?) },

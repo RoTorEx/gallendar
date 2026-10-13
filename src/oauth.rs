@@ -85,7 +85,7 @@ fn scopes(config: &Config, account: &Account) -> Result<Vec<String>> {
     let reader = config.routes().iter().any(|r| r.from == account.name);
     let writer = config.routes().iter().any(|r| r.to == account.name);
     ensure!(reader || writer, "Account is not used by any route");
-    Ok(vec![
+    let mut required = vec![
         "openid".into(),
         "email".into(),
         if writer {
@@ -95,7 +95,14 @@ fn scopes(config: &Config, account: &Account) -> Result<Vec<String>> {
         }
         .into(),
         "https://www.googleapis.com/auth/calendar.events.freebusy".into(),
-    ])
+    ];
+    if writer && config.mirror_calendar_name.is_some() {
+        required.extend([
+            "https://www.googleapis.com/auth/calendar.calendarlist.readonly".into(),
+            "https://www.googleapis.com/auth/calendar.calendars".into(),
+        ]);
+    }
+    Ok(required)
 }
 fn scope_present(granted: &[String], requested: &str) -> bool {
     granted.iter().any(|s| {
@@ -583,6 +590,34 @@ mod tests {
                 0o700
             );
         }
+    }
+
+    #[test]
+    fn named_calendar_permissions_apply_only_to_destinations_and_require_relogin() {
+        let (mut config, _) = crate::demo::fixture();
+        config.routes = Some(vec![crate::config::Route {
+            from: "account-0".into(),
+            to: "account-1".into(),
+            mode: crate::config::MirrorMode::Masked,
+            title: "Busy".into(),
+            attendees: vec![],
+        }]);
+        let previous = scopes(&config, &config.accounts[1]).unwrap();
+        config.mirror_calendar_name = Some("Gallendar".into());
+        let source = scopes(&config, &config.accounts[0]).unwrap();
+        let target = scopes(&config, &config.accounts[1]).unwrap();
+        assert!(
+            !source
+                .iter()
+                .any(|s| s.contains("calendar.calendarlist") || s.contains("calendar.calendars"))
+        );
+        assert!(
+            target
+                .iter()
+                .any(|s| s.ends_with("calendar.calendarlist.readonly"))
+        );
+        assert!(target.iter().any(|s| s.ends_with("calendar.calendars")));
+        assert!(target.iter().any(|s| !scope_present(&previous, s)));
     }
 
     #[test]

@@ -93,6 +93,7 @@ pub fn fixture() -> (Config, Memory) {
             oauth: None,
             service_account_key: PathBuf::new(),
             namespace: "demo".into(),
+            mirror_calendar_name: None,
             horizon_days: 30,
             poll_seconds: 60,
             all_day_policy: AllDayPolicy::Busy,

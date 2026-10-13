@@ -18,9 +18,11 @@ The existing four-account offline demo is kept as an engine check.
 
 OAuth login, source reads, and owner/write permission on the Innowise primary calendar
 are verified. The user now requests a separate gallendar calendar inside Innowise;
-configure its real ID, then verify actual writes, Innowise's real availability, colleague invitation delivery,
-and both routes with CLI run running. Autostart is deferred.
-Applied synchronization and colleague calendar availability are not confirmed yet. Public repository:
+global mirror_calendar_name now resolves it. Eight copies were saved and read back
+in the two-day live trial, and periodic CLI run is active. Verify Innowise's real
+availability, colleague invitation delivery and acceptance, and remaining live
+movement/cancellation scenarios. Autostart is deferred.
+Aggregated account availability and the colleague's busy time are not confirmed yet. Public repository:
 [RoTorEx/gallendar](https://github.com/RoTorEx/gallendar); releases are available on the
 [Releases](https://github.com/RoTorEx/gallendar/releases) page.
 

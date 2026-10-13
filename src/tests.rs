@@ -607,3 +607,175 @@ fn route_attendee_validation_rejects_invalid_duplicates_feedback_and_service_aut
         assert!(config.validate().is_err());
     }
 }
+
+#[test]
+fn named_calendar_config_accepts_empty_target_but_requires_destination_oauth() {
+    let (mut config, _) = mirror_fixture();
+    config.mirror_calendar_name = Some("Gallendar".into());
+    config.accounts[2].target.clear();
+    assert!(config.validate().is_err());
+    config.accounts[2].auth = Some(config::AuthMode::Oauth);
+    config.validate().unwrap();
+    config.mirror_calendar_name = Some(" ".into());
+    assert!(config.validate().is_err());
+    assert!(
+        Cli::try_parse_from(["gallendar", "calendar", "ensure", "--account", "innowise"]).is_ok()
+    );
+    assert!(Cli::try_parse_from(["gallendar", "sync", "--dry-run", "--details"]).is_ok());
+}
+
+#[test]
+fn live_trial_requires_explicit_apply_and_a_named_secondary_destination() {
+    let (mut config, _) = mirror_fixture();
+    let parsed = Cli::try_parse_from(["gallendar", "sync", "--apply"]).unwrap();
+    let Some(Command::Sync(args)) = parsed.command else {
+        panic!("sync command")
+    };
+    assert!(validate_apply(&config, &args).is_err());
+    assert!(Cli::try_parse_from(["gallendar", "sync", "--live-trial"]).is_err());
+    assert!(
+        Cli::try_parse_from([
+            "gallendar",
+            "sync",
+            "--apply",
+            "--live-trial",
+            "--availability-confirmed"
+        ])
+        .is_err()
+    );
+    let parsed = Cli::try_parse_from(["gallendar", "sync", "--apply", "--live-trial"]).unwrap();
+    let Some(Command::Sync(args)) = parsed.command else {
+        panic!("sync command")
+    };
+    assert!(validate_apply(&config, &args).is_err());
+    config.mirror_calendar_name = Some("Gallendar".into());
+    validate_apply(&config, &args).unwrap();
+}
+
+#[test]
+fn google_omitted_default_transparency_and_timezone_normalization_match_busy() {
+    let (config, api) = demo::fixture();
+    let busy = api.calendars["source-0"][0]
+        .busy(&config.accounts[0], "Europe/Warsaw", config.all_day_policy)
+        .unwrap()
+        .unwrap();
+    let namespace = model::digest(&[&config.namespace]);
+    let mut saved = busy.payload("clone-id", &namespace);
+    saved.as_object_mut().unwrap().remove("transparency");
+    for field in ["start", "end"] {
+        let utc = DateTime::parse_from_rfc3339(saved[field]["dateTime"].as_str().unwrap()).unwrap();
+        saved[field]["dateTime"] =
+            json!(utc.with_timezone(&chrono_tz::Europe::Warsaw).to_rfc3339());
+        saved[field]["timeZone"] = json!("Europe/Warsaw");
+    }
+    let mut clone = event(saved);
+    assert!(clone.matches(&busy, &namespace));
+    clone.transparency = "transparent".into();
+    assert!(!clone.matches(&busy, &namespace));
+}
+
+#[test]
+fn named_calendar_rejects_reverse_routes_into_source_accounts() {
+    let (mut config, _) = mirror_fixture();
+    config.auth = config::AuthMode::Oauth;
+    config.mirror_calendar_name = Some("Gallendar".into());
+    config.routes.as_mut().unwrap().push(config::Route {
+        from: "account-2".into(),
+        to: "account-0".into(),
+        mode: config::MirrorMode::Original,
+        title: "Busy".into(),
+        attendees: vec![],
+    });
+    config.accounts[2].source = "source-2".into();
+    config.accounts[0].target = "clone-0".into();
+    assert!(
+        config
+            .validate()
+            .unwrap_err()
+            .to_string()
+            .contains("one-way")
+    );
+}
+
+#[test]
+fn every_reconciliation_write_targets_only_the_destination_and_preserves_original_guests() {
+    use engine::CalendarApi;
+    struct DestinationOnly(demo::Memory);
+    impl CalendarApi for DestinationOnly {
+        fn source(&mut self, c: &str, w: &config::Window) -> Result<model::Snapshot> {
+            self.0.source(c, w)
+        }
+        fn clones(&mut self, c: &str, n: &str) -> Result<model::Snapshot> {
+            self.0.clones(c, n)
+        }
+        fn create(&mut self, c: &str, b: &model::Busy, n: &str) -> Result<()> {
+            assert_eq!(c, "clone-2");
+            self.0.create(c, b, n)
+        }
+        fn update(&mut self, c: &str, id: &str, b: &model::Busy, n: &str) -> Result<()> {
+            assert_eq!(c, "clone-2");
+            self.0.update(c, id, b, n)
+        }
+        fn delete(&mut self, c: &str, id: &str, n: &str) -> Result<()> {
+            assert_eq!(c, "clone-2");
+            self.0.delete(c, id, n)
+        }
+    }
+    let (mut config, mut memory) = mirror_fixture();
+    config.auth = config::AuthMode::Oauth;
+    config.routes.as_mut().unwrap()[0].mode = config::MirrorMode::Original;
+    config.routes.as_mut().unwrap()[0].attendees = vec!["colleague@example.invalid".into()];
+    config.validate().unwrap();
+    memory.calendars.get_mut("source-0").unwrap()[0]
+        .attendees
+        .push(model::Attendee {
+            email: "original-guest@example.invalid".into(),
+            response_status: "accepted".into(),
+            ..Default::default()
+        });
+    let mut api = DestinationOnly(memory);
+    let w = config.window(Utc::now());
+    let sources = |api: &DestinationOnly| {
+        serde_json::to_value([&api.0.calendars["source-0"], &api.0.calendars["source-1"]]).unwrap()
+    };
+    let before = sources(&api);
+    let plan = engine::plan(&mut api, &config, &w).unwrap();
+    engine::apply(&mut api, &plan).unwrap();
+    assert_eq!(sources(&api), before);
+    assert!(
+        engine::plan(&mut api, &config, &w)
+            .unwrap()
+            .actions
+            .is_empty()
+    );
+    assert!(
+        api.0.calendars["clone-2"]
+            .iter()
+            .flat_map(|e| &e.attendees)
+            .all(|a| a.email == "colleague@example.invalid")
+    );
+    let e = &mut api.0.calendars.get_mut("source-0").unwrap()[0];
+    e.summary = "Renamed original".into();
+    e.end.date_time = Some(
+        (DateTime::parse_from_rfc3339(e.end.date_time.as_deref().unwrap()).unwrap()
+            + Duration::minutes(10))
+        .to_rfc3339(),
+    );
+    let before = sources(&api);
+    let plan = engine::plan(&mut api, &config, &w).unwrap();
+    assert_eq!(plan.counts.update, 1);
+    engine::apply(&mut api, &plan).unwrap();
+    assert_eq!(sources(&api), before);
+    api.0.calendars.get_mut("source-0").unwrap()[0].status = "cancelled".into();
+    let before = sources(&api);
+    let plan = engine::plan(&mut api, &config, &w).unwrap();
+    assert_eq!(plan.counts.delete, 1);
+    engine::apply(&mut api, &plan).unwrap();
+    assert_eq!(sources(&api), before);
+    assert_eq!(
+        api.0.calendars["source-0"][0].attendees[0].email,
+        "original-guest@example.invalid"
+    );
+    assert!(!api.0.calendars.contains_key("clone-0"));
+    assert!(!api.0.calendars.contains_key("clone-1"));
+}

@@ -6,6 +6,9 @@ auth = "service_account"
 service_account_key = "secrets/service-account.json"
 # Keep this stable. Changing it makes existing clones belong to another instance.
 namespace = "gallendar-work"
+# Optional: resolve a separate calendar by its exact name in each destination account.
+# Requires destination OAuth; omit target IDs when enabled.
+# mirror_calendar_name = "Gallendar"
 # Check for a newer GitHub Release in the background, once per day on use.
 auto_update = true
 # Explicit operator choices; these are example values, not settled product rules.

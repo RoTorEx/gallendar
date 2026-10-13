@@ -14,10 +14,10 @@ synchronization. Directions are set through [[routes]] in TOML in the CLI home
 directory: ~/.x-cli-gallendar/config.toml. The new template contains two routes into Innowise.
 Existing configs without routes keep the previous all-to-all synchronization;
 they are not switched automatically. OAuth login and read access are verified for all three
-work accounts; the Innowise destination reports owner/write access. Calendar writes and
-real scheduling availability remain unverified.
-The requested destination is a separate calendar named gallendar inside the Innowise
-account. Its Calendar ID and effect on real availability still need to be verified. The experiment on two personal accounts was removed from the queue.
+work accounts; eight two-day trial copies were written and read back in the Innowise
+Gallendar secondary calendar. Real scheduling availability remains unverified.
+The destination is the separate Gallendar calendar inside Innowise, resolved by name
+and verified as owned by Innowise. Its effect on real availability still needs checking. The experiment on two personal accounts was removed from the queue.
 
 Requirement sources: `calendar_busy_sync_mvp_pack.zip` (three documents),
 `ANNEX_01_Product_Decisions.txt`, and the plan agreed in the current conversation.
@@ -45,7 +45,8 @@ Moving and changing duration update the copy; cancellation and deletion remove i
 Repeated passes do not create duplicates. Each route selects a mode:
 `mode = "masked"` uses `title` from TOML (default `Busy`),
 `mode = "original"` keeps only the source event's title, including an empty one.
-With original, the title field is not used. Renaming the source or changing the
+With original, the title field is not used. Both current work routes now use original
+mode at the user's request, including invitations for the Aveni route. Renaming the source or changing the
 mode updates the existing copy without creating a new one. Masked does not react
 to renaming the source. The new template selects masked with title = "Busy".
 
@@ -85,7 +86,8 @@ external sharing limited to free/busy: for these settings, the current service
 mode does not provide the required access. User OAuth requires
 permission for the app to act on behalf of the work account; the organization may restrict
 that too. Work-user OAuth login and source reads are verified; destination write permission is
-reported by the API, but actual writes and scheduling behavior are not verified yet. Synchronization works only while CLI run is running, without autostart.
+reported by the API and verified by eight live copy read-backs; account scheduling
+behavior remains unverified. Synchronization works only while CLI run is running, without autostart.
 
 Sharing must be verified for reading Aveni and Thira and writing own copies to Innowise. If organization
 policy forbids the required access, that is a separate blocker for the specific
@@ -110,6 +112,11 @@ architecture is built in advance.
   but does not change Google Calendar visibility permissions.
 - Busy copies never become a source of new copies.
 - Original events and unrelated destination events are preserved.
+- Named-calendar mode requires source and destination account sets to be disjoint.
+  The Google API adapter allows event writes only to the configured resolved destination
+  IDs. In named-calendar mode, source and primary calendar mutation attempts are
+  rejected before HTTP; legacy explicit-target mode retains its configured destinations.
+  Colleagues are attached only to destination copies; source guests remain untouched.
 - One original produces at most one corresponding copy per destination account.
 - After deletion or a move, the old interval is freed unless it is occupied by
   another active event.
@@ -117,13 +124,23 @@ architecture is built in advance.
 
 ## Conditional copies calendar design
 
-A separate copies calendar in Innowise is allowed only after verifying that it
-blocks Innowise's real availability. The user selected a separate gallendar calendar inside Innowise as the destination.
+Production acceptance of a separate copies calendar requires verifying that it
+blocks Innowise's real availability. The user selected a separate Gallendar calendar inside Innowise as the destination,
+so copies can be hidden independently in Dato. Global `mirror_calendar_name` resolves
+this exact name in each destination account on every pass. Only a uniquely named,
+owned secondary calendar is accepted; missing or ambiguous names stop the pass,
+with no automatic fallback to the primary calendar. `calendar ensure` is the separate,
+explicit creation operation and never creates events. Named calendars require destination
+OAuth with calendar-list read and calendar-management permissions. Explicit target IDs
+remain supported when the global name is absent.
 Its availability suitability remains unverified; do not claim the Innowise account is
 busy merely because a copy exists in this secondary calendar. Independently hiding copies is a secondary convenience.
 
-This design is not confirmed yet. Until suitability and operation are confirmed, checking
-real scheduling scenarios is mandatory; the presence of a Busy event or a successful API request
+This design is not confirmed yet. An explicitly authorized live trial may create copies in the uniquely named owned
+secondary calendar before availability acceptance (`--apply --live-trial`). This is
+verification, not a GO result; its output records that availability is unacknowledged.
+Ordinary production applies retain the external availability acknowledgement requirement.
+Checking real scheduling scenarios is mandatory; the presence of a Busy event or a successful API request
 does not prove the account is unavailable. On NO-GO, the design is abandoned and
 a variant with copies in the primary calendars is proposed. There is no automatic switch
 to it.
@@ -145,7 +162,7 @@ after all calendars are read successfully. This is a limitation of the current C
 product boundary for past and future remains an open task. Recurrence
 identities account for the series and the occurrence's original start.
 
-- horizon_days: 1 to 30 days, with 7 days in the template and current setup.
+- horizon_days: 1 to 30 days, with 7 days in the template; the current live trial uses 2 days.
   User decision: start with one rolling week from now and allow configuration
   up to 30 days. Invalid values are rejected before Google access. Reducing the
   window removes managed copies outside it on the next applied pass; source events

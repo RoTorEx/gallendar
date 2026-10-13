@@ -31,6 +31,48 @@ are not copied. Copies keep Google visibility = private; whether the title is
 visible depends on the viewer's permissions. Changing the mode or title updates
 existing copies on the next pass. Without mode/title, masked/Busy is used.
 
+Use a globally named destination calendar to keep copies separate in calendar viewers
+such as Dato:
+
+```toml
+# Root section, before [oauth], [[accounts]], or [[routes]]:
+mirror_calendar_name = "Gallendar"
+horizon_days = 2 # Current live trial; configurable from 1 to 30.
+
+# In the innowise account, omit target or use target = "".
+# In both routes, use mode = "original" for the complete source title.
+```
+
+The CLI searches the destination account's calendar list for this exact name,
+including hidden calendars. It requires ownership of a separate calendar and rejects
+multiple matches or a primary-calendar match. The name takes precedence over explicit
+target IDs. Names are resolved on each pass; missing calendars stop doctor and sync
+without creating anything. No fallback writes to the primary calendar occur.
+Without `mirror_calendar_name`, explicit target IDs continue to work.
+
+Named destinations add calendar-list read and calendar-management permissions to the
+destination's OAuth login only. After enabling the setting, run:
+
+```bash
+gallendar auth login --account innowise
+gallendar calendar ensure --account innowise
+gallendar doctor
+gallendar sync --dry-run --details
+```
+
+`calendar ensure` reuses an existing uniquely named calendar or explicitly creates
+one in Europe/Warsaw and reads its metadata back. It never creates events. Source
+logins and service-account support for explicit target IDs are preserved. For an explicitly authorized live verification before real account availability is
+accepted, use `gallendar sync --apply --live-trial --details`. This requires a named
+secondary calendar and records availability as unacknowledged; it does not establish GO.
+Ordinary production apply still requires `--availability-confirmed`.
+
+A dry-run
+with `--details` shows mirrored titles, intervals, destination IDs and configured
+invitees. Full source titles are visible to invited colleagues when using original mode.
+Separate-calendar visibility in Dato and real account availability are different checks;
+hiding Gallendar in Dato does not prove that scheduling tools block the account.
+
 `from` and `to` refer to a `name` in `[[accounts]]`. Only route sources are
 read; copies are managed only in their destinations. An empty route list,
 unknown names, duplicates, and self-routes are rejected. Without `routes`, old
@@ -198,11 +240,9 @@ attendees = ["colleague@example.com", "another@example.com"]
 
 Keep the separate Thira route; leaving its attendees empty keeps its copies without guests.
 `attendees = []` is the default. Only these configured emails are invited to destination copies;
-original meetings and their guest lists are untouched. Set the Innowise account's `target` to
-the Calendar ID of its separate gallendar calendar to send both routes there; the calendar's
-display name is not its ID. Create it in Google Calendar settings if needed and copy the ID
-from Integrate calendar. This does not require another CLI login. A secondary calendar's
-effect on Innowise availability must be verified before applying the plan.
+original meetings and their guest lists are untouched. Use `mirror_calendar_name` to send both routes into a separate calendar by name,
+or configure its explicit Calendar ID as `target` if using the earlier OAuth scopes.
+A secondary calendar's effect on Innowise availability must be verified before applying the plan.
 The existing Innowise OAuth login already
 has the required event-write scope; no colleague login or key is needed. Destination OAuth is
 required because this service-account mode does not implement domain-wide delegation.
