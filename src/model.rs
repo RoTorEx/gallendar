@@ -78,6 +78,7 @@ pub struct Snapshot {
 
 #[derive(Clone)]
 pub struct Busy {
+    pub visibility: String,
     pub attendees: Vec<String>,
     pub summary: String,
     pub key: String,
@@ -158,6 +159,7 @@ impl Event {
             _ => self.id.clone(),
         };
         Ok(Some(Busy {
+            visibility: "private".into(),
             attendees: Vec::new(),
             summary: "Busy".into(),
             key: digest(&[&account.source, &identity]),
@@ -185,7 +187,8 @@ impl Event {
             && self.status != "cancelled"
             && self.summary == desired.summary
             && (self.transparency.is_empty() || self.transparency == "opaque")
-            && self.visibility == "private"
+            && (self.visibility == desired.visibility
+                || (self.visibility.is_empty() && desired.visibility == "default"))
             && {
                 let mut actual: Vec<_> = self
                     .attendees
@@ -225,7 +228,7 @@ impl Busy {
     pub fn payload(&self, id: &str, namespace: &str) -> Value {
         // Construct from an allowlist. Never copy the original event object.
         let mut payload = json!({ "id": id, "summary": self.summary, "status": "confirmed", "eventType": "default",
-            "visibility": "private", "transparency": "opaque", "start": self.start, "end": self.end,
+            "visibility": self.visibility, "transparency": "opaque", "start": self.start, "end": self.end,
             "reminders": { "useDefault": false },
             "extendedProperties": { "private": { MANAGED: "v1", NAMESPACE: namespace, KEY: self.key } }
         });

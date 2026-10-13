@@ -1,18 +1,18 @@
-# Current tasks
+# Remaining operator checks
 
 Scope: **Aveni & Thira → Innowise**. Rules: [BUSINESS.md](BUSINESS.md).
+Implementation and API validation are recorded in [business/validation.md](business/validation.md).
 
-## Verify the result and launch
+- [ ] Have a colleague recheck full original titles after the default-visibility fix.
+  Busy intervals in the primary destination were already confirmed by the user.
+- [ ] Observe a real source move, rename, cancellation and recurrence exception for
+  each route. Source edits are performed by the user; the CLI must never write sources.
+- [ ] Confirm the configured Aveni colleague's invitation acceptance and busy time,
+  then observe updates/cancellation without resetting their response.
+- [ ] Exercise Dato's title exclusions with one original and its corresponding copy.
+- [ ] Measure source-change-to-destination delay during awake operation against the
+  configured ten-minute interval plus pass duration. Reboot persistence is configured
+  and launchd recovery tested; an actual reboot remains an operator check.
 
-- [ ] Verify Innowise availability from a real work scenario according to
-  [business/validation.md](business/validation.md).
-- [ ] Check live movement, deletion, recurrence exceptions, and
-  restart separately for Aveni → Innowise and Thira → Innowise.
-- [ ] Agree on all-day, tentative, and how to detect a stop.
-- [ ] With a real colleague email configured for Aveni → Innowise, verify invitation
-  delivery, acceptance, moving the copy, guest removal, and cancellation; confirm their busy time.
-- [ ] Measure synchronization delay with CLI run running at the configured interval (currently ten minutes). Autostart is deferred for now.
-
-Further releases and scope expansion require a separate request.
-The current request authorizes the public RoTorEx/gallendar, the first release v0.1.0,
-and installation from GitHub with working update and automatic updates.
+No repository implementation is queued here. VPS work and additional platforms
+remain deferred. Further releases or scope expansion require a user request.

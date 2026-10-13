@@ -136,7 +136,24 @@ pub fn run(action: &str, config: &Path, home: &Path) -> Result<Value> {
         )
     };
     match action {
-        "status" => status(),
+        "status" => {
+            let mut result = status()?;
+            let mut active_config = config.to_path_buf();
+            if agent.is_file() {
+                let args = Command::new("/usr/bin/plutil")
+                    .args(["-extract", "ProgramArguments", "json", "-o", "-"])
+                    .arg(&agent)
+                    .output()?;
+                if let Ok(existing) = serde_json::from_slice::<Vec<String>>(&args.stdout)
+                    && let Some(path) = existing.get(2)
+                {
+                    active_config = path.into();
+                }
+            }
+            result["config"] = json!(active_config);
+            result["sync"] = crate::logging::sync_status(&home.join("logs"), &active_config)?;
+            Ok(result)
+        }
         "restart" => {
             let requested = restart_service(&service, &agent, &std::env::current_exe()?)?;
             let mut result = status()?;

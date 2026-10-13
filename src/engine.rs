@@ -137,6 +137,11 @@ pub fn plan(api: &mut impl CalendarApi, config: &Config, window: &Window) -> Res
                         crate::config::MirrorMode::Original => original_title.clone(),
                     };
                     copy.summary = format!("{}{title}", route.prefix);
+                    copy.visibility = match route.mode {
+                        crate::config::MirrorMode::Original => "default",
+                        crate::config::MirrorMode::Masked => "private",
+                    }
+                    .into();
                     copy.attendees = route
                         .attendees
                         .iter()

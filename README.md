@@ -27,9 +27,10 @@ title = "Busy"
 `mode = "masked"` displays the `title` value, for example `Busy`, `Unavailable`, or
 `Aveni — busy`. Titles can contain any Unicode text. `mode = "original"` keeps the source meeting's title;
 `title` is ignored in this mode. Source descriptions, attendees, locations, and links
-are not copied. Copies keep Google visibility = private; whether the title is
-visible depends on the viewer's permissions. Changing the mode or title updates
-existing copies on the next pass. Without mode/title, masked/Busy is used.
+are not copied. Original-title copies use Google visibility = default, so the
+calendar's existing sharing rules determine who sees the title. Masked copies
+remain private. Calendar access limited to free/busy still hides titles. Changing the mode or title updates
+existing copies on the next pass, including visibility changes. Without mode/title, masked/Busy is used.
 
 Each route also accepts `prefix`, empty by default. It is prepended literally in
 both modes: `prefix = "[Aveni] "` with an original title `Standup` displays
@@ -110,7 +111,11 @@ terminal does not stop it. Repeated start with the same config does not spawn an
 worker; another config or an active foreground run requires stopping that worker first.
 `stop` unloads the job and removes its autostart plist. Repeated stop is harmless.
 `status` distinguishes autostart enabled, job loaded and actual running PID; registration
-is not proof that Google synchronization succeeded. Review the private daily JSONL logs.
+is not proof that Google synchronization succeeded. `sync.last_pass`, `sync.last_success`
+and `sync.last_failure` report applied periodic-pass outcomes for the active config,
+including timestamps, duration and errors; previews and other configs are excluded.
+A historical failure can remain listed after recovery: inspect last_pass for the current
+outcome. Timestamps in JSON retain UTC. Review the private daily JSONL logs.
 
 The worker runs the installed `~/.x-cli-gallendar/bin/gallendar`, with an absolute config
 path. `--config PATH daemon start` selects a different config. `daemon status/stop` work

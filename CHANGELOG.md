@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+- Original-title copies now inherit destination calendar visibility instead of being
+  forced private, repairing existing managed copies in place while preserving source
+  protection, IDs and guest responses. Masked copies remain private.
+- Include applied periodic-pass success/failure history in daemon status, excluding
+  previews and other configs. Align route template ordering and current documentation.
+
 - Restart a matching loaded macOS daemon after successful manual or automatic updates
   and installation, preserving its configuration and autostart. Stopped jobs remain stopped.
 - Check automatic updates before periodic passes, respecting the existing daily limit

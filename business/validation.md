@@ -5,7 +5,7 @@ Queue: [TASK.md](../TASK.md).
 
 ## Current results
 
-**Secondary writes verified; secondary account availability failed. Primary migration pending.** The check applies to
+**Primary writes and user-observed busy availability confirmed; original-title visibility repaired by API readback.** The check applies to
 Aveni → Innowise and Thira → Innowise; personal accounts are not involved.
 
 On 2026-10-13, by 15:49 Warsaw (CEST, UTC+02:00), the authorized two-day live
@@ -129,6 +129,34 @@ running daemon: its PID changed, registration and autostart stayed enabled, and
 both config and plist were preserved byte-for-byte. This verifies process reload,
 not Google synchronization success. The change is locally installed and tracked
 under Unreleased; no additional release tag is part of this maintenance task.
+
+## Primary destination and title visibility repair
+
+On 2026-10-13 the user confirmed deleting the former Gallendar secondary calendar.
+Its retired cleanup ID was removed from the active config; the primary destination,
+source accounts, five-day horizon, ten-minute interval and directed routes stayed
+unchanged. Twelve primary copies were applied and periodic passes completed.
+The user subsequently confirmed colleagues can see the busy intervals and supplied
+a screenshot showing hidden titles. This establishes busy visibility, not visibility
+of the repaired titles or the invited colleague's acceptance.
+
+Independent API inspection found all twelve managed primary copies had full
+prefixed titles but private visibility. The fix maps original mode to default
+calendar visibility and retains private visibility for masked mode. The plan was
+update=12, create=0, delete=0. Applying it verified each saved copy. Independent
+before/after reads confirmed stable IDs, titles, times, guests and response values;
+all twelve copies now use default visibility. Both source snapshots and unrelated
+Innowise events were unchanged. No calendar was created or source event edited.
+The subsequent daemon pass succeeded without further changes.
+
+Required checks passed with 67 tests and one GUI-session integration test run
+separately. Reconciliation tests cover visibility repair, omitted Google defaults,
+source rename and time changes within a five-day window, switching back to masked
+mode and repeated-pass stability. Existing movement, deletion, recurring-occurrence
+and invitation tests remain passing. Status tests exclude previews, other configs
+and one-shot commands from daemon applied-pass health. Apple Silicon packaging and
+isolated installation passed. Current user-side checks remain in TASK.md; a new
+colleague screenshot is needed to establish title rendering after the repair.
 
 ## Preparation and sequence
 

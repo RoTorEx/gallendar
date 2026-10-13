@@ -18,8 +18,10 @@ work accounts; eight two-day trial copies were written and read back in the Inno
 Gallendar secondary calendar. The secondary destination failed the real scheduling check: copies exist in Gallendar,
 but their intervals remain free in the Innowise primary and absent from a colleague's
 scheduling view. The user authorized migration to the explicit Innowise primary
-with title exclusions in Dato. Primary live writes and observer acceptance after
-migration remain pending until the user launches the prepared CLI. The experiment on two personal accounts was removed from the queue.
+with title exclusions in Dato. Twelve primary copies were applied successfully after
+the user deleted the old calendar and its retired cleanup ID was removed. The user
+confirmed colleagues can see the resulting busy intervals; their screenshot exposed
+private copies hiding titles, corrected by default visibility in original mode. The experiment on two personal accounts was removed from the queue.
 
 Requirement sources: `calendar_busy_sync_mvp_pack.zip` (three documents),
 `ANNEX_01_Product_Decisions.txt`, and the plan agreed in the current conversation.
@@ -104,7 +106,11 @@ for launchd to unregister the job. Real launchd start/stop and crash recovery ch
 protect this lifecycle. Interrupted writes reconcile on the next start. A per-config
 lock prevents concurrent foreground/daemon synchronization. The agent starts at
 login, not before login, and cannot synchronize during sleep. Private operation
-logs remain in CLI home; launchd stdout/stderr logs are private too.
+logs remain in CLI home; launchd stdout/stderr logs are private too. Daemon status
+reads applied periodic outcomes for its registered config from the private journals:
+last_pass, last_success and last_failure include original UTC timestamps, duration
+and error. Previews, one-shot commands and unrelated configs are excluded. Old
+failures remain visible after recovery; last_pass determines the latest outcome.
 
 Sharing must be verified for reading Aveni and Thira and writing own copies to Innowise. If organization
 policy forbids the required access, that is a separate blocker for the specific
@@ -129,8 +135,12 @@ architecture is built in advance.
 - The source title is copied only with explicit mode = "original".
   With masked, only the configured title is copied. Source descriptions, locations, attendees,
   meeting links, and other context are not copied in any mode.
-- Copies stay private and opaque in both modes; original keeps the title
-  but does not change Google Calendar visibility permissions.
+- Copies stay opaque. Masked copies remain private; original-title copies use default
+  event visibility to follow the destination calendar's existing sharing permissions.
+  They do not become public or alter calendar ACLs. Existing private copies in original
+  mode are updated in place; missing Google default visibility is treated as default
+  to avoid repeated writes. Visibility, titles, times and route guests are reconciled
+  on every successful pass within the rolling window. Source writes remain forbidden.
 - Busy copies never become a source of new copies.
 - Original events and unrelated destination events are preserved.
 - Named-calendar mode requires source and destination account sets to be disjoint.
@@ -161,7 +171,9 @@ Foreign events and calendar containers remain. Cleanup never creates or updates
 retired events and cannot target sources, configured primaries or active destinations.
 Partial passes are recoverable; cancellation/new invitations replace old guest copies,
 so responses to the old invitations do not transfer. Remove retired IDs only after
-successful cleanup. The primary live run remains the user's manual action.
+successful cleanup, or when the user confirms the retired calendar itself was deleted.
+A missing or inaccessible retired calendar is never silently ignored. The deleted
+Gallendar secondary is no longer in the current config and is not recreated.
 
 Named secondary destinations remain available as an optional explicit configuration,
 without primary fallback. They do not fulfill the current account availability goal.
@@ -169,8 +181,9 @@ without primary fallback. They do not fulfill the current account availability g
 The user explicitly removed the availability-acknowledgement launch requirement.
 `gallendar run` starts applied synchronization without additional flags;
 `run --dry-run` previews. One-shot sync remains read-only unless `--apply` is supplied.
-Primary destination availability after migration still needs a real observer check;
-the secondary design has a confirmed negative result, not an incomplete check.
+The user confirmed primary destination availability with colleagues after migration;
+the secondary design has a confirmed negative result. Title visibility after the fix
+still needs a fresh colleague-side observation.
 Checking real scheduling scenarios remains useful: the presence of a Busy event
 or a successful API request does not prove the account is unavailable. A failing
 availability scenario calls for an explicit destination decision; the CLI never

@@ -248,11 +248,11 @@ fn action_details(action: &engine::Action) -> Value {
     match action {
         engine::Action::Create { target, busy } => {
             json!({"action":"create", "target":target, "key":busy.key,
-            "title":busy.summary, "start":busy.start, "end":busy.end, "attendees":busy.attendees})
+            "title":busy.summary, "visibility":busy.visibility, "start":busy.start, "end":busy.end, "attendees":busy.attendees})
         }
         engine::Action::Update { target, id, busy } => {
             json!({"action":"update", "target":target, "id":id, "key":busy.key,
-            "title":busy.summary, "start":busy.start, "end":busy.end, "attendees":busy.attendees})
+            "title":busy.summary, "visibility":busy.visibility, "start":busy.start, "end":busy.end, "attendees":busy.attendees})
         }
         engine::Action::Delete { target, id } => {
             json!({"action":"delete", "target":target, "id":id})

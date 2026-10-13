@@ -183,3 +183,146 @@ mod tests {
         fs::remove_dir_all(root).unwrap();
     }
 }
+
+/// Read applied periodic-pass outcomes; previews and other configurations are excluded.
+pub fn sync_status(directory: &Path, config: &Path) -> Result<Value> {
+    use std::collections::BTreeMap;
+    use std::io::{BufRead, BufReader};
+    let mut files: Vec<_> = fs::read_dir(directory)?
+        .filter_map(|e| e.ok().map(|e| e.path()))
+        .filter(|p| p.extension().is_some_and(|s| s == "jsonl"))
+        .collect();
+    files.sort();
+    let canonical = config
+        .canonicalize()
+        .unwrap_or_else(|_| config.to_path_buf());
+    let mut sessions: BTreeMap<String, bool> = BTreeMap::new();
+    let mut applied: BTreeMap<String, bool> = BTreeMap::new();
+    let mut last_pass = Value::Null;
+    let mut last_success = Value::Null;
+    let mut last_failure = Value::Null;
+    for file in files {
+        if !fs::symlink_metadata(&file)?.is_file() {
+            continue;
+        }
+        for line in BufReader::new(fs::File::open(file)?).lines() {
+            let Ok(line) = line else {
+                continue;
+            };
+            let Ok(record) = serde_json::from_str::<Value>(&line) else {
+                continue;
+            };
+            let Some(session) = record["session"].as_str() else {
+                continue;
+            };
+            let event = record["event"].as_str().unwrap_or("");
+            let data = &record["data"];
+            if event == "command_started" {
+                let same = data["config"].as_str().is_some_and(|p| {
+                    Path::new(p)
+                        .canonicalize()
+                        .unwrap_or_else(|_| PathBuf::from(p))
+                        == canonical
+                });
+                sessions.insert(session.into(), same && data["command"] == "run");
+                continue;
+            }
+            if sessions.get(session) != Some(&true) {
+                continue;
+            }
+            if event == "pass_started" {
+                applied.insert(session.into(), data["apply"] == true);
+            }
+            if applied.get(session) == Some(&true)
+                && (event == "pass_completed" || event == "pass_failed")
+            {
+                let outcome = json!({"timestamp":record["timestamp"],"pid":record["pid"],
+                    "duration_ms":data["duration_ms"],"error":data["error"]});
+                last_pass = outcome.clone();
+                if event == "pass_completed" {
+                    last_success = outcome;
+                } else {
+                    last_failure = outcome;
+                }
+            }
+        }
+    }
+    Ok(json!({"last_pass":last_pass,"last_success":last_success,"last_failure":last_failure}))
+}
+
+#[cfg(test)]
+mod status_tests {
+    use super::*;
+    #[test]
+    fn status_excludes_previews_other_configs_and_unrelated_commands() {
+        let path = std::env::temp_dir().join(format!("gallendar-status-{}", uuid::Uuid::new_v4()));
+        fs::create_dir(&path).unwrap();
+        let logger = Logger::new(&path).unwrap();
+        let config = path.join("config.toml");
+        let data = json!({"command":"run","config":config});
+        logger
+            .write(Utc::now(), "command_started", data.clone())
+            .unwrap();
+        logger
+            .write(Utc::now(), "pass_started", json!({"apply":false}))
+            .unwrap();
+        logger
+            .write(
+                Utc::now(),
+                "pass_completed",
+                json!({"duration_ms":1,"error":null}),
+            )
+            .unwrap();
+        assert!(sync_status(&path, &config).unwrap()["last_success"].is_null());
+        logger
+            .write(Utc::now(), "pass_started", json!({"apply":true}))
+            .unwrap();
+        logger
+            .write(
+                Utc::now(),
+                "pass_completed",
+                json!({"duration_ms":2,"error":null}),
+            )
+            .unwrap();
+        logger
+            .write(
+                Utc::now(),
+                "pass_failed",
+                json!({"duration_ms":3,"error":"timeout"}),
+            )
+            .unwrap();
+        logger
+            .write(
+                Utc::now(),
+                "command_started",
+                json!({"command":"run","config":"/unrelated"}),
+            )
+            .unwrap();
+        logger
+            .write(
+                Utc::now(),
+                "pass_completed",
+                json!({"duration_ms":4,"error":null}),
+            )
+            .unwrap();
+        logger
+            .write(
+                Utc::now(),
+                "command_started",
+                json!({"command":"sync","config":config}),
+            )
+            .unwrap();
+        logger
+            .write(
+                Utc::now(),
+                "pass_completed",
+                json!({"duration_ms":5,"error":null}),
+            )
+            .unwrap();
+        let state = sync_status(&path, &config).unwrap();
+        assert_eq!(state["last_success"]["duration_ms"], 2);
+        assert_eq!(state["last_failure"]["error"], "timeout");
+        assert_eq!(state["last_pass"]["duration_ms"], 3);
+        fs::remove_dir_all(path).unwrap();
+    }
+}

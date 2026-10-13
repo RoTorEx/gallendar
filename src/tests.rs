@@ -969,3 +969,87 @@ fn migration_rejects_source_primary_active_and_duplicate_cleanup_ids() {
         assert!(config.validate().is_err());
     }
 }
+
+#[test]
+fn original_titles_repair_private_copies_and_follow_changes_with_stable_ids() {
+    let (mut config, mut api) = mirror_fixture();
+    config.horizon_days = 5;
+    let window = config.window(Utc::now());
+    let namespace = model::digest(&[&config.namespace]);
+    config.routes.as_mut().unwrap()[1].prefix = "[Thira] ".into();
+    let initial = engine::plan(&mut api, &config, &window).unwrap();
+    engine::apply(&mut api, &initial).unwrap();
+    let old = api.calendars["clone-2"]
+        .iter()
+        .find(|e| e.summary.starts_with("[Thira]"))
+        .unwrap()
+        .clone();
+    assert_eq!(old.visibility, "default");
+    let source_before = serde_json::to_value(&api.calendars["source-1"]).unwrap();
+    api.calendars
+        .get_mut("clone-2")
+        .unwrap()
+        .iter_mut()
+        .find(|e| e.id == old.id)
+        .unwrap()
+        .visibility = "private".into();
+    let repair = engine::plan(&mut api, &config, &window).unwrap();
+    assert_eq!(repair.counts.update, 1);
+    assert_eq!(repair.counts.create, 0);
+    engine::apply(&mut api, &repair).unwrap();
+    let saved = api.calendars["clone-2"]
+        .iter()
+        .find(|e| e.id == old.id)
+        .unwrap();
+    assert_eq!(saved.visibility, "default");
+    assert_eq!(saved.summary, old.summary);
+    assert_eq!(
+        serde_json::to_value(&api.calendars["source-1"]).unwrap(),
+        source_before
+    );
+    // Google may omit default visibility; that must not generate repeated writes.
+    api.calendars
+        .get_mut("clone-2")
+        .unwrap()
+        .iter_mut()
+        .find(|e| e.id == old.id)
+        .unwrap()
+        .visibility
+        .clear();
+    assert!(
+        engine::plan(&mut api, &config, &window)
+            .unwrap()
+            .actions
+            .is_empty()
+    );
+    let source = &mut api.calendars.get_mut("source-1").unwrap()[0];
+    source.summary = "Renamed source".into();
+    source.start.date_time = Some((Utc::now() + Duration::days(3)).to_rfc3339());
+    source.end.date_time = Some((Utc::now() + Duration::days(3) + Duration::hours(1)).to_rfc3339());
+    let update = engine::plan(&mut api, &config, &window).unwrap();
+    assert_eq!(update.counts.update, 1);
+    engine::apply(&mut api, &update).unwrap();
+    let saved = api.calendars["clone-2"]
+        .iter()
+        .find(|e| e.id == old.id)
+        .unwrap();
+    assert_eq!(saved.summary, "[Thira] Renamed source");
+    assert_eq!(saved.visibility, "default");
+    assert!(saved.owned(&namespace));
+    assert!(
+        engine::plan(&mut api, &config, &window)
+            .unwrap()
+            .actions
+            .is_empty()
+    );
+    config.routes.as_mut().unwrap()[1].mode = config::MirrorMode::Masked;
+    let masked = engine::plan(&mut api, &config, &window).unwrap();
+    assert_eq!(masked.counts.update, 1);
+    engine::apply(&mut api, &masked).unwrap();
+    let saved = api.calendars["clone-2"]
+        .iter()
+        .find(|e| e.id == old.id)
+        .unwrap();
+    assert_eq!(saved.visibility, "private");
+    assert_eq!(saved.summary, "[Thira] Busy");
+}
