@@ -107,10 +107,11 @@ pub fn plan(api: &mut impl CalendarApi, config: &Config, window: &Window) -> Res
             {
                 for (key, (busy, original_title)) in events {
                     let mut copy = busy.clone();
-                    copy.summary = match route.mode {
+                    let title = match route.mode {
                         crate::config::MirrorMode::Masked => route.title.clone(),
                         crate::config::MirrorMode::Original => original_title.clone(),
                     };
+                    copy.summary = format!("{}{title}", route.prefix);
                     copy.attendees = route
                         .attendees
                         .iter()

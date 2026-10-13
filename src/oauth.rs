@@ -600,6 +600,7 @@ mod tests {
             to: "account-1".into(),
             mode: crate::config::MirrorMode::Masked,
             title: "Busy".into(),
+            prefix: String::new(),
             attendees: vec![],
         }]);
         let previous = scopes(&config, &config.accounts[1]).unwrap();

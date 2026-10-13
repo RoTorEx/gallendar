@@ -31,6 +31,12 @@ are not copied. Copies keep Google visibility = private; whether the title is
 visible depends on the viewer's permissions. Changing the mode or title updates
 existing copies on the next pass. Without mode/title, masked/Busy is used.
 
+Each route also accepts `prefix`, empty by default. It is prepended literally in
+both modes: `prefix = "[Aveni] "` with an original title `Standup` displays
+`[Aveni] Standup`. Include the desired space or separator in the prefix. Changing
+or removing a prefix updates existing copies without changing their identities
+or the source events; invited colleagues see the same resulting title.
+
 Use a globally named destination calendar to keep copies separate in calendar viewers
 such as Dato:
 
@@ -71,6 +77,10 @@ Ordinary production apply still requires `--availability-confirmed`.
 A dry-run
 with `--details` shows mirrored titles, intervals, destination IDs and configured
 invitees. Full source titles are visible to invited colleagues when using original mode.
+Google treats the separate calendar as organizer and the authenticated owner as creator.
+The owner is not automatically a guest. Inviting their own profile could place
+an invitation in their primary calendar, so configured account addresses remain
+excluded from route attendees to preserve calendar separation.
 Separate-calendar visibility in Dato and real account availability are different checks;
 hiding Gallendar in Dato does not prove that scheduling tools block the account.
 

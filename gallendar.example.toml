@@ -48,6 +48,8 @@ to = "innowise"
 # "masked" uses title; "original" preserves the source event title only.
 mode = "masked"
 title = "Busy"
+# Literal text prepended to either original or masked title; include a separator.
+prefix = ""
 # Invite only these colleagues to this route's copies; requires destination OAuth.
 attendees = []
 
@@ -57,5 +59,7 @@ to = "innowise"
 # "masked" uses title; "original" preserves the source event title only.
 mode = "masked"
 title = "Busy"
+# Literal text prepended to either original or masked title; include a separator.
+prefix = ""
 # Invite only these colleagues to this route's copies; requires destination OAuth.
 attendees = []

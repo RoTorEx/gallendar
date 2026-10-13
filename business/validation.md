@@ -16,7 +16,7 @@ resolved uniquely; no new calendar or primary-calendar copy was created.
 - Eight copies were read back: four from each source, with exact original titles
   and intervals. Four Aveni copies contain only the configured colleague; four
   Thira copies contain no guests. RSVP is needsAction; receipt and acceptance
-  on the colleague's side are not observed.
+  on the colleague's side were not observed in that initial API-only check.
 - The first write exposed Google's omission of default opaque transparency.
   The pass stopped after that saved copy; the comparison was corrected and tested.
   Recovery reused it and created the remaining seven without duplicates.
@@ -36,8 +36,22 @@ resolved uniquely; no new calendar or primary-calendar copy was created.
   write rejection before HTTP, create/update/delete destination isolation,
   original-guest preservation, notification requests and RSVP preservation.
 
+A subsequent user-provided screenshot of the colleague's calendar shows an Aveni
+copy with its full title, Gallendar as organizer, the Innowise owner as creator,
+and the colleague as the only guest with a pending response. This establishes
+visibility on the colleague's side, not acceptance or busy-time aggregation. The
+user declined adding their own Innowise profile to the guests to keep invitations
+out of the primary calendar.
+
+Route prefixes were then applied to the eight existing copies: four with the Aveni
+label and four with the Thira label. Independent before/after API reads verified
+stable copy IDs, unchanged guest lists and RSVP values, unchanged source snapshots,
+and no managed copies in the Innowise primary. A repeated plan had no changes.
+The required checks passed with 54 Rust tests, including prefix changes in both
+title modes, prefix removal, an empty original title and guest-response preservation.
+
 **Acceptance remains incomplete.** A colleague's real Find a time view, booking
-aggregation, invitation delivery/acceptance, Dato hiding, live movement/cancellation
+aggregation, invitation acceptance, Dato hiding, live movement/cancellation
 and observed synchronization delay have not been checked. These results establish
 saved copies and repeatability, not the Innowise account's aggregated busy time.
 The requested copies are intentionally retained for the user's live trial.

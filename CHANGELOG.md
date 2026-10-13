@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- Added per-route literal title prefixes for original and masked modes; changing
+  a prefix updates the existing copy and preserves its identity and guest responses.
+
 - Set the template polling interval to 600 seconds (10 minutes); `poll_seconds`
   accepts positive integer seconds instead of the former 120-second limit.
   Restart a running CLI after changing the interval.

@@ -48,7 +48,11 @@ Repeated passes do not create duplicates. Each route selects a mode:
 With original, the title field is not used. Both current work routes now use original
 mode at the user's request, including invitations for the Aveni route. Renaming the source or changing the
 mode updates the existing copy without creating a new one. Masked does not react
-to renaming the source. The new template selects masked with title = "Busy".
+to renaming the source. The new template selects masked with title = "Busy". Each route supports an optional
+`prefix`, empty by default, prepended literally to either title mode. The operator
+includes the desired separator. Prefix changes update existing copies and preserve
+their identities, guest responses and source titles. Both the owner and invited
+colleagues see the prefixed title.
 
 Ordinary Busy events, Out of Office, and tentative events are synchronized. Events
 marked Free / Available and declined invitations are not synchronized.
@@ -105,6 +109,10 @@ architecture is built in advance.
   A colleague's calendar visibility and busy status depend on Google invitation settings
   and their response. An invitation does not prove that their time is blocked.
   Configured account addresses are rejected as guests to prevent invitation feedback loops.
+  The separate Gallendar calendar is the organizer; the authenticated Innowise owner
+  is the creator, not automatically an attendee. The user explicitly declined inviting
+  their own Innowise profile because Google could place an invitation in the primary
+  calendar and defeat independent hiding in Dato. Keep the owner out of the guest list.
 - The source title is copied only with explicit mode = "original".
   With masked, only the configured title is copied. Source descriptions, locations, attendees,
   meeting links, and other context are not copied in any mode.

@@ -305,6 +305,7 @@ fn mirror_fixture() -> (Config, demo::Memory) {
             to: "account-2".into(),
             mode: config::MirrorMode::Masked,
             title: "Aveni Busy".into(),
+            prefix: String::new(),
             attendees: Vec::new(),
         },
         config::Route {
@@ -312,6 +313,7 @@ fn mirror_fixture() -> (Config, demo::Memory) {
             to: "account-2".into(),
             mode: config::MirrorMode::Original,
             title: "Busy".into(),
+            prefix: String::new(),
             attendees: Vec::new(),
         },
     ]);
@@ -478,6 +480,68 @@ fn oauth_configuration_keeps_legacy_and_mixed_modes() {
         .is_ok()
     );
     assert!(Cli::try_parse_from(["gallendar", "auth", "status", "--json"]).is_ok());
+}
+
+#[test]
+fn route_prefixes_update_existing_copies_without_changing_sources_or_guest_responses() {
+    let (mut config, mut api) = mirror_fixture();
+    config.auth = config::AuthMode::Oauth;
+    let source_before = serde_json::to_value(&api.calendars["source-0"]).unwrap();
+    config.routes.as_mut().unwrap()[0].attendees = vec!["guest@example.com".into()];
+    config.routes.as_mut().unwrap()[0].prefix = "[Aveni] ".into();
+    config.routes.as_mut().unwrap()[1].prefix = "[Thira] ".into();
+    let window = config.window(Utc::now());
+    let plan = engine::plan(&mut api, &config, &window).unwrap();
+    engine::apply(&mut api, &plan).unwrap();
+    let copies = api.calendars.get_mut("clone-2").unwrap();
+    let invited = copies.iter_mut().find(|e| !e.attendees.is_empty()).unwrap();
+    assert_eq!(invited.summary, "[Aveni] Aveni Busy");
+    invited.attendees[0].response_status = "accepted".into();
+    let ids: Vec<_> = copies.iter().map(|e| e.id.clone()).collect();
+    assert!(copies.iter().any(|e| e.summary.starts_with("[Thira] ")));
+    assert_eq!(
+        engine::plan(&mut api, &config, &window)
+            .unwrap()
+            .counts
+            .unchanged,
+        2
+    );
+    config.routes.as_mut().unwrap()[0].mode = config::MirrorMode::Original;
+    config.routes.as_mut().unwrap()[0].prefix = "Project / ".into();
+    config.routes.as_mut().unwrap()[1].prefix.clear();
+    let changed = engine::plan(&mut api, &config, &window).unwrap();
+    assert_eq!(changed.counts.update, 2);
+    assert_eq!(changed.counts.create, 0);
+    assert_eq!(changed.counts.delete, 0);
+    engine::apply(&mut api, &changed).unwrap();
+    let copies = &api.calendars["clone-2"];
+    assert_eq!(copies.iter().map(|e| e.id.clone()).collect::<Vec<_>>(), ids);
+    let invited = copies.iter().find(|e| !e.attendees.is_empty()).unwrap();
+    assert_eq!(
+        invited.summary,
+        format!("Project / {}", api.calendars["source-0"][0].summary)
+    );
+    assert_eq!(invited.attendees[0].response_status, "accepted");
+    assert_eq!(
+        serde_json::to_value(&api.calendars["source-0"]).unwrap(),
+        source_before
+    );
+    assert!(
+        engine::plan(&mut api, &config, &window)
+            .unwrap()
+            .actions
+            .is_empty()
+    );
+    api.calendars.get_mut("source-0").unwrap()[0]
+        .summary
+        .clear();
+    let empty = engine::plan(&mut api, &config, &window).unwrap();
+    engine::apply(&mut api, &empty).unwrap();
+    assert!(
+        api.calendars["clone-2"]
+            .iter()
+            .any(|e| e.summary == "Project / ")
+    );
 }
 
 #[test]
@@ -701,6 +765,7 @@ fn named_calendar_rejects_reverse_routes_into_source_accounts() {
         to: "account-0".into(),
         mode: config::MirrorMode::Original,
         title: "Busy".into(),
+        prefix: String::new(),
         attendees: vec![],
     });
     config.accounts[2].source = "source-2".into();

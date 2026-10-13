@@ -72,6 +72,8 @@ pub struct Route {
     #[serde(default = "default_title")]
     pub title: String,
     #[serde(default)]
+    pub prefix: String,
+    #[serde(default)]
     pub attendees: Vec<String>,
 }
 
@@ -105,6 +107,7 @@ impl Config {
                             to: to.name.clone(),
                             mode: MirrorMode::Masked,
                             title: default_title(),
+                            prefix: String::new(),
                             attendees: Vec::new(),
                         })
                 })
