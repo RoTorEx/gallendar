@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-10-13
+
 - Add `gallendar status` with a readable local overview, actual running daemon
   version, latest synchronization result and Warsaw timestamps; support `--json`.
 
