@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-10-13
+
 - Added local macOS `daemon start/stop/status` using a persistent login LaunchAgent,
   the installed binary and an absolute config path. Start is idempotent; stop removes
   autostart. launchd supervises crashes while the existing config lock prevents overlap.
