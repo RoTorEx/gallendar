@@ -26,7 +26,7 @@ title = "Busy"
 
 `mode = "masked"` displays the `title` value, for example `Busy`, `Unavailable`, or
 `Aveni — busy`. Titles can contain any Unicode text. `mode = "original"` keeps the source meeting's title;
-`title` is ignored in this mode. Description, attendees, location, and links
+`title` is ignored in this mode. Source descriptions, attendees, locations, and links
 are not copied. Copies keep Google visibility = private; whether the title is
 visible depends on the viewer's permissions. Changing the mode or title updates
 existing copies on the next pass. Without mode/title, masked/Busy is used.
@@ -185,8 +185,42 @@ the process is alive. After verifying the destination's real availability:
 gallendar run --apply --availability-confirmed
 ```
 
-Adding attendees is not part of this implementation: both modes still create
-private Busy copies without guests and without Google Meet links.
+Optional colleagues are configured independently for each route:
+
+```toml
+[[routes]]
+from = "aveni"
+to = "innowise"
+mode = "masked"
+title = "Busy"
+attendees = ["colleague@example.com", "another@example.com"]
+```
+
+Keep the separate Thira route; leaving its attendees empty keeps its copies without guests.
+`attendees = []` is the default. Only these configured emails are invited to destination copies;
+original meetings and their guest lists are untouched. Set the Innowise account's `target` to
+the Calendar ID of its separate gallendar calendar to send both routes there; the calendar's
+display name is not its ID. Create it in Google Calendar settings if needed and copy the ID
+from Integrate calendar. This does not require another CLI login. A secondary calendar's
+effect on Innowise availability must be verified before applying the plan.
+The existing Innowise OAuth login already
+has the required event-write scope; no colleague login or key is needed. Destination OAuth is
+required because this service-account mode does not implement domain-wide delegation.
+Plain email addresses are required; duplicates and configured account addresses are rejected
+(the latter prevents invitation feedback into source calendars).
+
+On the next applied pass, new colleagues are invited to every copy in the current window,
+including existing copies. Removing an email removes that guest. Source moves, cancellations,
+and deletion of copies outside the window send updates or cancellations to guests. Google
+requests use `sendUpdates=all` whenever guests are involved; without guests they keep `none`.
+Unchanged copies send no repeated invitations. Existing RSVP values are preserved during
+updates, and a decline is not forcibly accepted. Google invitation settings and the colleague's
+response determine whether the event appears and blocks their calendar:
+[Google Calendar invitation behavior](https://developers.google.com/workspace/calendar/api/v3/reference/events/insert).
+Guests see the configured mirrored title and interval; no Google Meet link is added.
+
+After editing the TOML, review `gallendar sync --dry-run`, then use the existing applied-sync
+command after the availability check. Restart an already running `gallendar run` to load changes.
 
 ## Reference Google guide for the earlier experiment
 

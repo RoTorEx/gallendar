@@ -305,12 +305,14 @@ fn mirror_fixture() -> (Config, demo::Memory) {
             to: "account-2".into(),
             mode: config::MirrorMode::Masked,
             title: "Aveni Busy".into(),
+            attendees: Vec::new(),
         },
         config::Route {
             from: "account-1".into(),
             to: "account-2".into(),
             mode: config::MirrorMode::Original,
             title: "Busy".into(),
+            attendees: Vec::new(),
         },
     ]);
     config.validate().unwrap();
@@ -498,5 +500,110 @@ fn horizon_accepts_one_to_thirty_days_and_starts_at_now() {
                 .to_string()
                 .contains("horizon_days")
         );
+    }
+}
+
+#[test]
+fn route_attendees_are_independent_and_changes_reconcile_existing_copies() {
+    let (mut config, mut api) = mirror_fixture();
+    config.auth = config::AuthMode::Oauth;
+    config.routes.as_mut().unwrap()[0].attendees = vec!["Colleague@example.com".into()];
+    config.validate().unwrap();
+    api.calendars.get_mut("source-0").unwrap()[0]
+        .attendees
+        .push(model::Attendee {
+            email: "source-guest@example.com".into(),
+            response_status: "accepted".into(),
+            ..Default::default()
+        });
+    let window = config.window(Utc::now());
+    let initial = engine::plan(&mut api, &config, &window).unwrap();
+    engine::apply(&mut api, &initial).unwrap();
+    let events = api.calendars.get_mut("clone-2").unwrap();
+    let invited = events
+        .iter_mut()
+        .find(|e| e.summary == "Aveni Busy")
+        .unwrap();
+    let id = invited.id.clone();
+    assert_eq!(invited.attendees.len(), 1);
+    assert_eq!(invited.attendees[0].email, "colleague@example.com");
+    invited.attendees[0].response_status = "accepted".into();
+    // Google can omit guestsCanModify=false, its documented default.
+    invited.extra.remove("guestsCanModify");
+    assert!(
+        events
+            .iter()
+            .find(|e| e.summary != "Aveni Busy")
+            .unwrap()
+            .attendees
+            .is_empty()
+    );
+    assert_eq!(
+        engine::plan(&mut api, &config, &window)
+            .unwrap()
+            .counts
+            .unchanged,
+        2
+    );
+    // Reordering/case and RSVP changes do not trigger invitations every poll.
+    config.routes.as_mut().unwrap()[0].attendees[0] = "COLLEAGUE@example.com".into();
+    assert!(
+        engine::plan(&mut api, &config, &window)
+            .unwrap()
+            .actions
+            .is_empty()
+    );
+    config.routes.as_mut().unwrap()[0]
+        .attendees
+        .push("new@example.com".into());
+    let change = engine::plan(&mut api, &config, &window).unwrap();
+    assert_eq!(change.counts.update, 1);
+    assert_eq!(change.counts.create, 0);
+    engine::apply(&mut api, &change).unwrap();
+    let invited = api.calendars["clone-2"]
+        .iter()
+        .find(|e| e.id == id)
+        .unwrap();
+    assert_eq!(invited.attendees[0].response_status, "accepted");
+    assert_eq!(invited.attendees.len(), 2);
+    assert!(
+        engine::plan(&mut api, &config, &window)
+            .unwrap()
+            .actions
+            .is_empty()
+    );
+    config.routes.as_mut().unwrap()[0].attendees.clear();
+    let removal = engine::plan(&mut api, &config, &window).unwrap();
+    assert_eq!(removal.counts.update, 1);
+    engine::apply(&mut api, &removal).unwrap();
+    assert!(
+        api.calendars["clone-2"]
+            .iter()
+            .find(|e| e.id == id)
+            .unwrap()
+            .attendees
+            .is_empty()
+    );
+}
+
+#[test]
+fn route_attendee_validation_rejects_invalid_duplicates_feedback_and_service_auth() {
+    let (mut config, _) = mirror_fixture();
+    config.routes.as_mut().unwrap()[0].attendees = vec!["guest@example.com".into()];
+    assert!(config.validate().unwrap_err().to_string().contains("OAuth"));
+    config.auth = config::AuthMode::Oauth;
+    config.validate().unwrap();
+    for emails in [
+        vec!["invalid"],
+        vec!["guest@@example.com"],
+        vec!["guest@example.com\n"],
+        vec!["Name <guest@example.com>"],
+        vec!["guest@example.com", "GUEST@example.com"],
+        vec!["owner-0@example.invalid"],
+        vec!["owner-2@example.invalid"],
+    ] {
+        config.routes.as_mut().unwrap()[0].attendees =
+            emails.into_iter().map(str::to_owned).collect();
+        assert!(config.validate().is_err());
     }
 }

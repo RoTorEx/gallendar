@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+- Added per-route colleague email lists (`attendees`) for destination OAuth copies.
+  Guest changes update existing copies; invitation updates and cancellations are sent,
+  existing RSVP values are preserved, and unchanged passes do not re-invite guests.
+  Source attendees are never copied. Service-account destinations and invitation
+  feedback into configured accounts are rejected when guests are configured.
+
 - Start with a configurable 7-day rolling synchronization window and reject
   horizons outside 1–30 days before accessing Google.
 

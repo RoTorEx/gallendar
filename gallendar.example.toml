@@ -44,6 +44,8 @@ to = "innowise"
 # "masked" uses title; "original" preserves the source event title only.
 mode = "masked"
 title = "Busy"
+# Invite only these colleagues to this route's copies; requires destination OAuth.
+attendees = []
 
 [[routes]]
 from = "thira"
@@ -51,3 +53,5 @@ to = "innowise"
 # "masked" uses title; "original" preserves the source event title only.
 mode = "masked"
 title = "Busy"
+# Invite only these colleagues to this route's copies; requires destination OAuth.
+attendees = []

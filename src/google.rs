@@ -353,7 +353,14 @@ impl CalendarApi for Google {
         // recreation after a deletion, whose original ID remains tombstoned.
         let id = format!("gld{}", uuid::Uuid::new_v4().simple());
         let mut url = self.events_url(calendar, None)?;
-        url.query_pairs_mut().append_pair("sendUpdates", "none");
+        url.query_pairs_mut().append_pair(
+            "sendUpdates",
+            if busy.attendees.is_empty() {
+                "none"
+            } else {
+                "all"
+            },
+        );
         let response = self.request(
             calendar,
             Method::POST,
@@ -378,13 +385,20 @@ impl CalendarApi for Google {
             "Clone ownership changed; refusing to overwrite it"
         );
         let mut url = self.events_url(calendar, Some(id))?;
-        url.query_pairs_mut().append_pair("sendUpdates", "none");
+        url.query_pairs_mut().append_pair(
+            "sendUpdates",
+            if busy.attendees.is_empty() && current.attendees.is_empty() {
+                "none"
+            } else {
+                "all"
+            },
+        );
         // Full replacement also removes accidentally introduced sensitive fields.
         let response = self.request(
             calendar,
             Method::PUT,
             url,
-            Some(&busy.payload(id, namespace)),
+            Some(&busy.update_payload(id, namespace, &current)),
             current.extra.get("etag").and_then(Value::as_str),
         )?;
         ensure!(
@@ -407,7 +421,14 @@ impl CalendarApi for Google {
             "Clone ownership changed; refusing to delete it"
         );
         let mut url = self.events_url(calendar, Some(id))?;
-        url.query_pairs_mut().append_pair("sendUpdates", "none");
+        url.query_pairs_mut().append_pair(
+            "sendUpdates",
+            if current.attendees.is_empty() {
+                "none"
+            } else {
+                "all"
+            },
+        );
         let response = self.request(
             calendar,
             Method::DELETE,
@@ -567,6 +588,56 @@ mod tests {
         assert!(!requests[1].contains("sensitive accidental field"));
         assert!(requests[1].contains("sendUpdates=none"));
         assert!(requests[2].starts_with("GET "));
+    }
+
+    #[test]
+    fn invitations_notify_guests_preserve_rsvp_and_notify_removals_and_cancellation() {
+        let (config, memory) = crate::demo::fixture();
+        let mut busy = memory.calendars["source-0"][0]
+            .busy(&config.accounts[0], "Europe/Warsaw", config.all_day_policy)
+            .unwrap()
+            .unwrap();
+        busy.attendees = vec!["guest@example.com".into()];
+        let namespace = crate::model::digest(&[&config.namespace]);
+        let saved = busy.payload("clone-id", &namespace);
+        let (mut api, thread, requests) = server(vec![(200, saved.clone()), (200, saved.clone())]);
+        api.create("target", &busy, &namespace).unwrap();
+        thread.join().unwrap();
+        let request = &requests.lock().unwrap()[0];
+        assert!(request.contains("sendUpdates=all"));
+        assert!(request.contains("guest@example.com"));
+        assert!(!request.contains("responseStatus"));
+        let mut accepted = saved.clone();
+        accepted["attendees"][0]["responseStatus"] = json!("accepted");
+        let (mut api, thread, requests) = server(vec![
+            (200, accepted.clone()),
+            (200, accepted.clone()),
+            (200, accepted.clone()),
+        ]);
+        api.update("target", "clone-id", &busy, &namespace).unwrap();
+        thread.join().unwrap();
+        assert!(requests.lock().unwrap()[1].contains("sendUpdates=all"));
+        assert!(requests.lock().unwrap()[1].contains("accepted"));
+        busy.attendees.clear();
+        let empty = busy.payload("clone-id", &namespace);
+        let (mut api, thread, requests) = server(vec![
+            (200, accepted.clone()),
+            (200, empty.clone()),
+            (200, empty),
+        ]);
+        api.update("target", "clone-id", &busy, &namespace).unwrap();
+        thread.join().unwrap();
+        assert!(requests.lock().unwrap()[1].contains("sendUpdates=all"));
+        assert!(!requests.lock().unwrap()[1].contains("guest@example.com"));
+        let (mut api, thread, requests) = server(vec![
+            (200, accepted),
+            (204, json!(null)),
+            (404, json!(null)),
+        ]);
+        api.delete("target", "clone-id", &namespace).unwrap();
+        thread.join().unwrap();
+        assert!(requests.lock().unwrap()[1].starts_with("DELETE "));
+        assert!(requests.lock().unwrap()[1].contains("sendUpdates=all"));
     }
 
     #[test]

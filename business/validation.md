@@ -5,7 +5,11 @@ Queue: [TASK.md](../TASK.md).
 
 ## Current results
 
-**Not verified.** Access is not configured yet. The current check applies to
+**Availability and writes not verified.** OAuth login and source reads are verified for
+all three work accounts; the Innowise primary destination reports owner/write permission.
+The seven-day dry-run plans 19 copies without applying them. Colleague notifications
+are covered by local mock API tests, but real invitation delivery and colleague availability
+remain unverified. The current check applies to
 Aveni → Innowise and Thira → Innowise; personal accounts are not needed.
 
 ## Preparation and sequence

@@ -70,6 +70,8 @@ pub struct Route {
     pub mode: MirrorMode,
     #[serde(default = "default_title")]
     pub title: String,
+    #[serde(default)]
+    pub attendees: Vec<String>,
 }
 
 #[derive(Clone, Copy, Default, Deserialize, Serialize)]
@@ -102,6 +104,7 @@ impl Config {
                             to: to.name.clone(),
                             mode: MirrorMode::Masked,
                             title: default_title(),
+                            attendees: Vec::new(),
                         })
                 })
                 .collect()
@@ -240,6 +243,50 @@ impl Config {
                 !to.target.is_empty(),
                 "Route target needs a target calendar ID"
             );
+            if !route.attendees.is_empty() {
+                ensure!(
+                    to.auth.unwrap_or(self.auth) == AuthMode::Oauth,
+                    "Route attendees require OAuth on the destination account"
+                );
+            }
+            let mut guests = HashSet::new();
+            for email in &route.attendees {
+                let valid = email.split_once('@').is_some_and(|(local, domain)| {
+                    !local.is_empty()
+                        && !domain.is_empty()
+                        && !local.starts_with('.')
+                        && !local.ends_with('.')
+                        && !local.contains("..")
+                        && local.bytes().all(|b| {
+                            b.is_ascii_alphanumeric() || b".!#$%&'*+-/=?^_`{|}~".contains(&b)
+                        })
+                        && domain.split('.').all(|label| {
+                            !label.is_empty()
+                                && !label.starts_with('-')
+                                && !label.ends_with('-')
+                                && label
+                                    .bytes()
+                                    .all(|b| b.is_ascii_alphanumeric() || b == b'-')
+                        })
+                });
+                ensure!(
+                    valid,
+                    "Route attendees must contain plain valid email addresses"
+                );
+                ensure!(
+                    guests.insert(email.to_ascii_lowercase()),
+                    "Duplicate route attendee"
+                );
+                ensure!(
+                    !self
+                        .accounts
+                        .iter()
+                        .any(|a| a.owner_email.eq_ignore_ascii_case(email)
+                            || a.source.eq_ignore_ascii_case(email)
+                            || a.target.eq_ignore_ascii_case(email)),
+                    "Route attendees cannot include configured accounts; this could create invitation feedback loops"
+                );
+            }
             ensure!(pairs.insert((&route.from, &route.to)), "Duplicate route");
         }
         ensure!(

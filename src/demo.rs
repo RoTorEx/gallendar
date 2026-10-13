@@ -50,7 +50,7 @@ impl CalendarApi for Memory {
         self.writes += 1;
         let events = self.calendars.get_mut(calendar).unwrap();
         let index = events.iter().position(|e| e.id == id).unwrap();
-        events[index] = serde_json::from_value(busy.payload(id, namespace))?;
+        events[index] = serde_json::from_value(busy.update_payload(id, namespace, &events[index]))?;
         Ok(())
     }
     fn delete(&mut self, calendar: &str, id: &str, _namespace: &str) -> Result<()> {

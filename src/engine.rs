@@ -111,6 +111,12 @@ pub fn plan(api: &mut impl CalendarApi, config: &Config, window: &Window) -> Res
                         crate::config::MirrorMode::Masked => route.title.clone(),
                         crate::config::MirrorMode::Original => original_title.clone(),
                     };
+                    copy.attendees = route
+                        .attendees
+                        .iter()
+                        .map(|email| email.to_ascii_lowercase())
+                        .collect();
+                    copy.attendees.sort();
                     desired.insert(key.clone(), copy);
                 }
             }

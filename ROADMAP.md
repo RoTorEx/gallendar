@@ -11,13 +11,16 @@ TOML can define sources, the destination, and explicit [[routes]].
 The new template defines Aveni → Innowise and Thira → Innowise.
 There is service and user OAuth access, separate per-account login,
 and automatic refresh of OAuth access tokens. There is recurrence handling, private Busy copies, read-back, and recovery.
+Each route can invite configured colleagues to OAuth destination copies.
 The existing four-account offline demo is kept as an engine check.
 
 ## Remaining for a working result
 
-Configure access to the three work accounts, choose the destination calendar,
-verify Innowise's real availability and both routes with CLI run running. Autostart is deferred.
-Access and operation are not confirmed yet. Public repository:
+OAuth login, source reads, and owner/write permission on the Innowise primary calendar
+are verified. The user now requests a separate gallendar calendar inside Innowise;
+configure its real ID, then verify actual writes, Innowise's real availability, colleague invitation delivery,
+and both routes with CLI run running. Autostart is deferred.
+Applied synchronization and colleague calendar availability are not confirmed yet. Public repository:
 [RoTorEx/gallendar](https://github.com/RoTorEx/gallendar); releases are available on the
 [Releases](https://github.com/RoTorEx/gallendar/releases) page.
 

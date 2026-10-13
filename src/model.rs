@@ -78,6 +78,7 @@ pub struct Snapshot {
 
 #[derive(Clone)]
 pub struct Busy {
+    pub attendees: Vec<String>,
     pub summary: String,
     pub key: String,
     pub start: EventTime,
@@ -157,6 +158,7 @@ impl Event {
             _ => self.id.clone(),
         };
         Ok(Some(Busy {
+            attendees: Vec::new(),
             summary: "Busy".into(),
             key: digest(&[&account.source, &identity]),
             start,
@@ -184,7 +186,21 @@ impl Event {
             && self.summary == desired.summary
             && self.transparency == "opaque"
             && self.visibility == "private"
-            && self.attendees.is_empty()
+            && {
+                let mut actual: Vec<_> = self
+                    .attendees
+                    .iter()
+                    .map(|a| a.email.to_ascii_lowercase())
+                    .collect();
+                actual.sort();
+                actual == desired.attendees
+            }
+            && (desired.attendees.is_empty()
+                || (self
+                    .extra
+                    .get("guestsCanModify")
+                    .is_none_or(|v| v == &Value::Bool(false))
+                    && self.extra.get("guestsCanInviteOthers") == Some(&Value::Bool(false))))
             && (self.event_type.is_empty() || self.event_type == "default")
             && self.recurring_event_id.is_none()
             && [
@@ -208,11 +224,44 @@ impl Event {
 impl Busy {
     pub fn payload(&self, id: &str, namespace: &str) -> Value {
         // Construct from an allowlist. Never copy the original event object.
-        json!({ "id": id, "summary": self.summary, "status": "confirmed", "eventType": "default",
+        let mut payload = json!({ "id": id, "summary": self.summary, "status": "confirmed", "eventType": "default",
             "visibility": "private", "transparency": "opaque", "start": self.start, "end": self.end,
             "reminders": { "useDefault": false },
             "extendedProperties": { "private": { MANAGED: "v1", NAMESPACE: namespace, KEY: self.key } }
-        })
+        });
+        if !self.attendees.is_empty() {
+            payload["attendees"] = json!(
+                self.attendees
+                    .iter()
+                    .map(|email| json!({"email":email}))
+                    .collect::<Vec<_>>()
+            );
+            payload["guestsCanModify"] = json!(false);
+            payload["guestsCanInviteOthers"] = json!(false);
+        }
+        payload
+    }
+
+    pub fn update_payload(&self, id: &str, namespace: &str, current: &Event) -> Value {
+        let mut payload = self.payload(id, namespace);
+        if self.attendees.is_empty() && !current.attendees.is_empty() {
+            payload["attendees"] = json!([]);
+        }
+        if let Some(guests) = payload.get_mut("attendees").and_then(Value::as_array_mut) {
+            for guest in guests {
+                if let Some(previous) = current.attendees.iter().find(|a| {
+                    guest["email"]
+                        .as_str()
+                        .is_some_and(|email| a.email.eq_ignore_ascii_case(email))
+                }) && matches!(
+                    previous.response_status.as_str(),
+                    "accepted" | "declined" | "tentative" | "needsAction"
+                ) {
+                    guest["responseStatus"] = json!(previous.response_status);
+                }
+            }
+        }
+        payload
     }
 }
 

@@ -13,9 +13,11 @@ Implemented: offline demo, access check, dry-run, one-shot and periodic
 synchronization. Directions are set through [[routes]] in TOML in the CLI home
 directory: ~/.x-cli-gallendar/config.toml. The new template contains two routes into Innowise.
 Existing configs without routes keep the previous all-to-all synchronization;
-they are not switched automatically. Access to real accounts is not configured yet.
-The type of the Innowise destination calendar and its effect on real availability
-still need to be verified. The experiment on two personal accounts was removed from the queue.
+they are not switched automatically. OAuth login and read access are verified for all three
+work accounts; the Innowise destination reports owner/write access. Calendar writes and
+real scheduling availability remain unverified.
+The requested destination is a separate calendar named gallendar inside the Innowise
+account. Its Calendar ID and effect on real availability still need to be verified. The experiment on two personal accounts was removed from the queue.
 
 Requirement sources: `calendar_busy_sync_mvp_pack.zip` (three documents),
 `ANNEX_01_Product_Decisions.txt`, and the plan agreed in the current conversation.
@@ -82,8 +84,8 @@ and manage its own copies. Screenshots of the Aveni and Innowise settings showed
 external sharing limited to free/busy: for these settings, the current service
 mode does not provide the required access. User OAuth requires
 permission for the app to act on behalf of the work account; the organization may restrict
-that too. Real authorization of work users and calendar access are not
-verified yet. Synchronization works only while CLI run is running, without autostart.
+that too. Work-user OAuth login and source reads are verified; destination write permission is
+reported by the API, but actual writes and scheduling behavior are not verified yet. Synchronization works only while CLI run is running, without autostart.
 
 Sharing must be verified for reading Aveni and Thira and writing own copies to Innowise. If organization
 policy forbids the required access, that is a separate blocker for the specific
@@ -92,8 +94,17 @@ architecture is built in advance.
 
 ## Privacy and invariants
 
+- Each route can set `attendees` to a list of colleague email addresses, empty by default.
+  Only these configured colleagues are invited to the destination copies; source guest lists
+  are never copied or edited. Guest changes update existing copies without new identities.
+  Existing responses are preserved, and unchanged passes do not send invitations again.
+  Updates and cancellations notify guests, including removal and rolling-window cleanup.
+  Destination OAuth is required; the current service-account mode has no delegation.
+  A colleague's calendar visibility and busy status depend on Google invitation settings
+  and their response. An invitation does not prove that their time is blocked.
+  Configured account addresses are rejected as guests to prevent invitation feedback loops.
 - The source title is copied only with explicit mode = "original".
-  With masked, only the configured title is copied. Descriptions, locations, attendees,
+  With masked, only the configured title is copied. Source descriptions, locations, attendees,
   meeting links, and other context are not copied in any mode.
 - Copies stay private and opaque in both modes; original keeps the title
   but does not change Google Calendar visibility permissions.
@@ -107,8 +118,9 @@ architecture is built in advance.
 ## Conditional copies calendar design
 
 A separate copies calendar in Innowise is allowed only after verifying that it
-blocks Innowise's real availability. The primary or secondary destination calendar
-is not selected yet. Independently hiding copies is a secondary convenience.
+blocks Innowise's real availability. The user selected a separate gallendar calendar inside Innowise as the destination.
+Its availability suitability remains unverified; do not claim the Innowise account is
+busy merely because a copy exists in this secondary calendar. Independently hiding copies is a secondary convenience.
 
 This design is not confirmed yet. Until suitability and operation are confirmed, checking
 real scheduling scenarios is mandatory; the presence of a Busy event or a successful API request
