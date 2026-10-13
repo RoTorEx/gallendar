@@ -129,8 +129,11 @@ an interrupted pass is reconciled on the next start. `stop` waits up to 125 seco
 (the exit timeout plus five seconds for launchd to unregister the job). These are supervisor timings,
 not the synchronization interval. No root service or VPS deployment is involved.
 This is a login agent: it does not run before login or while the Mac is asleep.
-Changing an installed binary does not replace an already-running process; use stop/start
-when upgrading a running daemon. Do not start a separate foreground run alongside it.
+Manual and automatic updates, and the installers, request a graceful restart of a
+matching loaded daemon after replacing its binary. Its plist, config path and autostart
+remain unchanged. The current pass finishes before launchd relaunches the installed
+binary; its 30-second throttle may delay relaunch. A stopped daemon stays stopped.
+`gallendar daemon restart` explicitly requests the same reload for a loaded job. Do not start a separate foreground run alongside it.
 
 ### Hide mirrored copies in Dato
 
@@ -217,7 +220,8 @@ For an already open terminal: `export PATH="$HOME/.x-cli-gallendar/bin:$PATH"`.
 
 Automatic updates are enabled via `auto_update = true` at the TOML root (the
 default for old configs is also true). When doctor, sync, run,
-or availability starts with a valid config, the installed CLI launches a background
+or availability starts with a valid config, and before each periodic run pass, the
+installed CLI launches a background
 check at most once per 24 hours through the public latest-release page,
 without a GitHub API token. The release number is checked; the archive is downloaded
 only for a new version. Errors do not interfere with the main command and are saved to
@@ -225,8 +229,12 @@ only for a new version. Errors do not interfere with the main command and are sa
 network request is not repeated on every start. `auto_update = false` disables
 this behavior. Help, version/home/config/setup, and the offline demo do not access
 the network. Local development binaries are not updated automatically.
-A new version is used from the next start; an already running run continues with
-the current version. Automatic updates do not create a system service or schedule.
+A running local daemon gracefully restarts after successful binary replacement,
+using its existing config and autostart settings. An update that is already current,
+a failed download or a failed replacement does not request a restart. A restart error
+after installation is reported explicitly; inspect `daemon status` and the logs.
+A foreground run uses the new binary on its next start. Automatic updates do not
+create or enable a daemon.
 
 
 The basic interface and delivery are aligned with the neighbours `linkdeck`, `hop`, `shelve`.

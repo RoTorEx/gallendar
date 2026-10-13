@@ -59,6 +59,57 @@ fn launchctl(args: &[&str]) -> Result<std::process::Output> {
         .context("Cannot run launchctl")
 }
 
+// Keep the loaded job and its exact arguments; launchd relaunches the replaced binary.
+#[cfg(target_os = "macos")]
+fn restart_service(service: &str, agent: &Path, binary: &Path) -> Result<bool> {
+    let loaded = launchctl(&["print", service])?;
+    if !loaded.status.success() {
+        return Ok(false);
+    }
+    let args = Command::new("/usr/bin/plutil")
+        .args(["-extract", "ProgramArguments", "json", "-o", "-"])
+        .arg(agent)
+        .output()?;
+    ensure!(args.status.success(), "Cannot read daemon arguments");
+    let existing: Vec<String> = serde_json::from_slice(&args.stdout)?;
+    if existing.first().is_none_or(|p| Path::new(p) != binary) {
+        return Ok(false);
+    }
+    // A loaded job without a PID is already waiting to launch the new executable.
+    if field(&String::from_utf8_lossy(&loaded.stdout), "pid").is_none() {
+        return Ok(false);
+    }
+    let result = launchctl(&["kill", "SIGTERM", service])?;
+    ensure!(
+        result.status.success(),
+        "Binary replaced, but daemon restart failed: {}. Check daemon status.",
+        String::from_utf8_lossy(&result.stderr).trim()
+    );
+    Ok(true)
+}
+
+pub fn after_update(binary: &Path) -> Result<()> {
+    #[cfg(target_os = "macos")]
+    {
+        let home = crate::home()?;
+        let uid = Command::new("/usr/bin/id").arg("-u").output()?;
+        ensure!(uid.status.success(), "Cannot determine user ID");
+        let service = format!("gui/{}/{LABEL}", String::from_utf8(uid.stdout)?.trim());
+        let agent = home
+            .parent()
+            .context("CLI home has no parent")?
+            .join("Library/LaunchAgents")
+            .join(format!("{LABEL}.plist"));
+        if restart_service(&service, &agent, binary)? {
+            crate::logging::event("daemon_restart_requested", json!({"binary":binary}))?;
+            eprintln!("Daemon restart requested; the current pass will finish before relaunch.");
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = binary;
+    Ok(())
+}
+
 #[cfg(target_os = "macos")]
 pub fn run(action: &str, config: &Path, home: &Path) -> Result<Value> {
     use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
@@ -86,6 +137,12 @@ pub fn run(action: &str, config: &Path, home: &Path) -> Result<Value> {
     };
     match action {
         "status" => status(),
+        "restart" => {
+            let requested = restart_service(&service, &agent, &std::env::current_exe()?)?;
+            let mut result = status()?;
+            result["restart_requested"] = json!(requested);
+            Ok(result)
+        }
         "stop" => {
             if status()?["loaded"] == true {
                 let result = launchctl(&["bootout", &service])?;
@@ -206,6 +263,83 @@ mod tests {
         assert!(generated.contains("daemon.stderr.log"));
         assert!(!generated.contains("StartInterval")); // The run loop owns poll_seconds.
     }
+    #[cfg(target_os = "macos")]
+    #[test]
+    #[ignore = "requires a logged-in macOS GUI session; uses an isolated launchd label"]
+    fn real_launchd_update_preserves_job_and_reloads_matching_binary() {
+        use std::os::unix::fs::PermissionsExt;
+        struct TestDir(std::path::PathBuf);
+        impl TestDir {
+            fn path(&self) -> &Path {
+                &self.0
+            }
+        }
+        impl Drop for TestDir {
+            fn drop(&mut self) {
+                let _ = fs::remove_dir_all(&self.0);
+            }
+        }
+        let dir = TestDir(
+            std::env::temp_dir().join(format!("gallendar-launchd-test-{}", uuid::Uuid::new_v4())),
+        );
+        fs::create_dir(dir.path()).unwrap();
+        let binary = dir.path().join("worker");
+        let marker = dir.path().join("version");
+        let agent = dir.path().join("agent.plist");
+        let label = format!("com.rotorex.gallendar.test.{}", std::process::id());
+        let uid = Command::new("/usr/bin/id").arg("-u").output().unwrap();
+        let domain = format!("gui/{}", String::from_utf8(uid.stdout).unwrap().trim());
+        let service = format!("{domain}/{label}");
+        let write_worker = |version: &str| {
+            let staging = dir.path().join("staging");
+            fs::write(&staging, format!("#!/bin/sh\ntrap 'exit 0' TERM\necho {version} > '{}'\nwhile :; do sleep 1; done\n", marker.display())).unwrap();
+            fs::set_permissions(&staging, fs::Permissions::from_mode(0o755)).unwrap();
+            fs::rename(staging, &binary).unwrap();
+        };
+        write_worker("old");
+        fs::write(&agent, format!(r#"<?xml version="1.0"?><plist version="1.0"><dict>
+<key>Label</key><string>{label}</string><key>ProgramArguments</key><array><string>{}</string></array>
+<key>RunAtLoad</key><true/><key>KeepAlive</key><true/><key>ThrottleInterval</key><integer>1</integer>
+</dict></plist>"#, xml(binary.to_str().unwrap()))).unwrap();
+        struct Cleanup(String);
+        impl Drop for Cleanup {
+            fn drop(&mut self) {
+                let _ = launchctl(&["bootout", &self.0]);
+            }
+        }
+        assert!(
+            launchctl(&["bootstrap", &domain, agent.to_str().unwrap()])
+                .unwrap()
+                .status
+                .success()
+        );
+        let _cleanup = Cleanup(service.clone());
+        let wait_marker = |version: &str| {
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
+            while fs::read_to_string(&marker).unwrap_or_default().trim() != version {
+                assert!(
+                    std::time::Instant::now() < deadline,
+                    "Worker did not launch {version}"
+                );
+                std::thread::sleep(std::time::Duration::from_millis(100));
+            }
+        };
+        wait_marker("old");
+        let before = fs::read(&agent).unwrap();
+        assert!(!restart_service(&service, &agent, &dir.path().join("unrelated")).unwrap());
+        write_worker("new");
+        assert!(restart_service(&service, &agent, &binary).unwrap());
+        wait_marker("new");
+        assert_eq!(fs::read(&agent).unwrap(), before);
+        assert!(launchctl(&["bootout", &service]).unwrap().status.success());
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
+        while launchctl(&["print", &service]).unwrap().status.success() {
+            assert!(std::time::Instant::now() < deadline);
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+        assert!(!restart_service(&service, &agent, &binary).unwrap());
+    }
+
     #[test]
     fn launchctl_status_distinguishes_registered_waiting_from_running() {
         assert_eq!(

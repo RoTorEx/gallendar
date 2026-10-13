@@ -116,6 +116,20 @@ left disabled for the user's manual start. Login persistence is configured throu
 RunAtLoad in the per-user LaunchAgents directory; an actual machine reboot was not
 performed. Google synchronization and observer acceptance remain separate checks.
 
+## Daemon-aware update validation
+
+On 2026-10-13, required checks passed with 65 tests; the additional GUI-session
+integration test passed separately. The isolated real launchd job ran an atomically
+replaced executable after graceful restart, kept its plist unchanged, and ignored
+an unrelated executable and an unloaded job. Atomic-install tests covered failed
+replacement, successful replacement before restart and explicit restart errors.
+Apple Silicon packaging and smoke installation passed; installing to an unrelated
+path did not restart the user's daemon. Local installation then reloaded the real
+running daemon: its PID changed, registration and autostart stayed enabled, and
+both config and plist were preserved byte-for-byte. This verifies process reload,
+not Google synchronization success. The change is locally installed and tracked
+under Unreleased; no additional release tag is part of this maintenance task.
+
 ## Preparation and sequence
 
 1. Establish the exact Calendar IDs of the two sources and the Innowise destination.

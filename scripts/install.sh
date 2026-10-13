@@ -107,5 +107,12 @@ if [ "$update_path" -eq 1 ]; then
     grep -Fqx "$line" "$profile" || printf '\n# x-cli-gallendar\n%s\n' "$line" >> "$profile"
 fi
 
+# A matching loaded LaunchAgent must use the newly installed executable.
+# Older releases do not expose this hook; keep explicit historical installs usable.
+if [ "$(uname -s)" = Darwin ] &&
+   "$install_dir/bin/gallendar" daemon restart --help >/dev/null 2>&1; then
+    "$install_dir/bin/gallendar" daemon restart >/dev/null
+fi
+
 echo "Installed $install_dir/bin/gallendar"
 echo "Run: export PATH=\"$install_dir/bin:\$PATH\""

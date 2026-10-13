@@ -108,6 +108,8 @@ enum Command {
 
 #[derive(Subcommand)]
 enum DaemonAction {
+    /// Reload a loaded daemon after binary replacement; leave stopped jobs stopped
+    Restart,
     /// Start background sync and enable autostart after login
     Start,
     /// Stop background sync and disable autostart
@@ -414,6 +416,7 @@ fn run_cli(cli: &Cli) -> Result<()> {
     if let Command::Daemon { action } = command {
         let action = match action {
             DaemonAction::Start => "start",
+            DaemonAction::Restart => "restart",
             DaemonAction::Stop => "stop",
             DaemonAction::Status => "status",
         };
@@ -438,7 +441,7 @@ fn run_cli(cli: &Cli) -> Result<()> {
         "configured",
         json!({"horizon_days":config.horizon_days,"poll_seconds":config.poll_seconds,"mirror_calendar_name":config.mirror_calendar_name,"routes":config.routes()}),
     )?;
-    if config.auto_update {
+    if config.auto_update && !matches!(command, Command::Run(_)) {
         update::start_automatic();
     }
     match command {
@@ -513,6 +516,12 @@ fn run_cli(cli: &Cli) -> Result<()> {
             while !stopped.load(Ordering::SeqCst) {
                 let started = Instant::now();
                 let config = Config::load(&path)?;
+                if config.auto_update {
+                    update::start_automatic();
+                }
+                if stopped.load(Ordering::SeqCst) {
+                    break;
+                }
                 if let Err(error) = sync(&config, args, cli.json, args.writes(true)) {
                     logging::event(
                         "retry_scheduled",

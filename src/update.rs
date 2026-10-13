@@ -152,7 +152,7 @@ fn run_locked(repo: Option<String>, automatic: bool) -> Result<()> {
     if version_number(&updated_version)? < version_number(&current_version)? {
         bail!("Latest release is older than this binary; refusing downgrade");
     }
-    install_binary(&updated, &current_exe)?;
+    install_and_restart(&updated, &current_exe, crate::daemon::after_update)?;
     println!("Updated {current_version} -> {updated_version}");
     Ok(())
 }
@@ -285,6 +285,15 @@ fn version_number(text: &str) -> Result<[u64; 3]> {
     parts
         .try_into()
         .map_err(|_| anyhow::anyhow!("Invalid release version"))
+}
+
+fn install_and_restart(
+    source: &Path,
+    destination: &Path,
+    restart: impl FnOnce(&Path) -> Result<()>,
+) -> Result<()> {
+    install_binary(source, destination)?;
+    restart(destination).context("Binary installed; could not restart the running daemon")
 }
 
 fn install_binary(source: &Path, destination: &Path) -> Result<()> {
@@ -456,6 +465,33 @@ mod tests {
         install_binary(&source, &destination).unwrap();
         assert_eq!(fs::read(&destination).unwrap(), b"new");
         assert_eq!(fs::read_dir(temp.path()).unwrap().count(), 2);
+    }
+
+    #[test]
+    fn update_restarts_only_after_successful_atomic_replacement() {
+        let temp = UpdateTempDir::create().unwrap();
+        let destination = temp.path().join(APP_NAME);
+        let source = temp.path().join("downloaded");
+        fs::write(&destination, b"old").unwrap();
+        assert!(
+            install_and_restart(&source, &destination, |_| {
+                panic!("A failed download/install must not restart the daemon")
+            })
+            .is_err()
+        );
+        fs::write(&source, b"new").unwrap();
+        let called = std::cell::Cell::new(false);
+        install_and_restart(&source, &destination, |path| {
+            assert_eq!(fs::read(path)?, b"new");
+            called.set(true);
+            Ok(())
+        })
+        .unwrap();
+        assert!(called.get());
+        let error =
+            install_and_restart(&source, &destination, |_| bail!("restart denied")).unwrap_err();
+        assert!(error.to_string().contains("Binary installed"));
+        assert_eq!(fs::read(&destination).unwrap(), b"new");
     }
 
     #[test]

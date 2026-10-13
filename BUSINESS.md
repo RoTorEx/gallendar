@@ -223,7 +223,16 @@ identities account for the series and the occurrence's original start.
   prevents parallel runs of a config; there is no distributed lock.
 - auto_update: true by default; the installed CLI checks GitHub Release
   in the background during working commands at most once per 24 hours. The interval limits
-  network requests; an already running run is not restarted. Setup and details are in the README.
+  network requests. Periodic workers check before every pass, respecting the same daily
+  limit and the current auto_update setting. Successful replacement by manual update,
+  automatic update or installation gracefully terminates a matching loaded daemon so
+  launchd relaunches the installed binary with the same arguments and autostart.
+  Stopped jobs and unrelated executables are not started or signalled. Failed replacement
+  and no-op updates do not restart it; failures to request restart after replacement
+  are reported as installed-but-not-restarted. A foreground run is not restarted.
+  Atomic replacement/restart ordering is tested; isolated real launchd checks verify
+  loaded-job preservation, new executable execution and stopped/unrelated isolation.
+  Setup and details are in the README.
 - The CLI obtains a new service or OAuth access token on each pass.
   OAuth login waits for the local callback for up to 180 seconds: the limited period leaves
   time to choose an account and does not keep an unfinished login open indefinitely; state is verified.

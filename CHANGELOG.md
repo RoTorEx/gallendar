@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+- Restart a matching loaded macOS daemon after successful manual or automatic updates
+  and installation, preserving its configuration and autostart. Stopped jobs remain stopped.
+- Check automatic updates before periodic passes, respecting the existing daily limit
+  and reloaded config. Add `daemon restart` for explicit graceful reloads.
+
 ## [0.2.2] - 2026-10-13
 
 - Added local macOS `daemon start/stop/status` using a persistent login LaunchAgent,
