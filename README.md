@@ -431,9 +431,12 @@ make release-push
 и annotated tag. Сам он не публикует. `make release-push` отправляет `main`
 и annotated tags без force; release tag должен указывать на HEAD.
 
-Push main и ручной запуск проверяют сборки без публикации. Tag запускает публикацию GitHub Actions: нативные сборки macOS Apple Silicon, macOS Intel
-и Linux x86_64 для VPS, проверка версии, упаковка, smoke install и GitHub Release
-с архивами, SHA-256 и `gallendar-install.sh`. Linux ARM пока собирается из исходников.
+Текущий scope релизных сборок — только macOS Apple Silicon (M-чипы),
+`aarch64-apple-darwin`. Intel Mac и Linux отложены; добавление платформ требует
+отдельного согласования. Ранее опубликованные assets остаются доступными.
+Push main и ручной запуск проверяют сборку без публикации. Tag запускает
+проверку версии, упаковку, smoke install и GitHub Release с архивом
+`gallendar-macos-aarch64.tar.gz`, SHA-256 и `gallendar-install.sh`.
 Публичный installer по умолчанию использует `RoTorEx/gallendar` и принимает `--version`, `--archive`, `--install-dir`,
 `--config-dir`, `--no-path-update`; репозиторий можно переопределить
 через `GALLENDAR_INSTALL_REPO=OWNER/REPO`. Конфиги при обновлении сохраняются.

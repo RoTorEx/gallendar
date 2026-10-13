@@ -18,12 +18,6 @@ jobs:
           - runner: macos-15
             target: aarch64-apple-darwin
             asset: macos-aarch64
-          - runner: macos-15-intel
-            target: x86_64-apple-darwin
-            asset: macos-x86_64
-          - runner: ubuntu-24.04
-            target: x86_64-unknown-linux-gnu
-            asset: linux-x86_64
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v6
