@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-10-13
+
 - Original-title copies now inherit destination calendar visibility instead of being
   forced private, repairing existing managed copies in place while preserving source
   protection, IDs and guest responses. Masked copies remain private.
