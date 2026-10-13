@@ -11,10 +11,11 @@ namespace = "gallendar-work"
 # mirror_calendar_name = "Gallendar"
 # Check for a newer GitHub Release in the background, once per day on use.
 auto_update = true
-# Explicit operator choices; these are example values, not settled product rules.
+# Explicit operator choices.
 # Rolling window from now, configurable from 1 to 30 days.
 horizon_days = 7
-poll_seconds = 60
+# Seconds between pass starts; 600 seconds = 10 minutes. Restart run after editing.
+poll_seconds = 600
 # "out_of_office_only": skip other all-day events.
 # "busy": include all-day Busy events, excluding birthday and workingLocation types.
 all_day_policy = "out_of_office_only"

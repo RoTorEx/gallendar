@@ -38,6 +38,7 @@ such as Dato:
 # Root section, before [oauth], [[accounts]], or [[routes]]:
 mirror_calendar_name = "Gallendar"
 horizon_days = 2 # Current live trial; configurable from 1 to 30.
+poll_seconds = 600 # Every 10 minutes; restart run after changing it.
 
 # In the innowise account, omit target or use target = "".
 # In both routes, use mode = "original" for the complete source title.
@@ -390,7 +391,7 @@ replacing all `REPLACE` values with real emails and Calendar IDs:
 service_account_key = "secrets/service-account.json"
 namespace = "gallendar-personal"
 horizon_days = 7
-poll_seconds = 60
+poll_seconds = 600
 all_day_policy = "out_of_office_only"
 
 [[accounts]]
@@ -414,7 +415,7 @@ Ordinary events with timed start and end suit the first test.
 `out_of_office_only` skips ordinary all-day events and keeps all-day events
 only of the Out of Office type. If ordinary Busy all-day events need to be copied, the
 operator explicitly chooses `busy`; the birthday and workingLocation types are still
-excluded. The values 30 days and 60 seconds are editable example parameters.
+excluded. The values 7 days and 600 seconds (10 minutes) are configurable parameters.
 Keep the namespace stable after synchronization starts.
 
 By default, the config is at `~/.x-cli-gallendar/config.toml`.
@@ -553,7 +554,11 @@ lock between VPSs.
 The protected window runs from the current moment `horizon_days` ahead. Copies outside it
 are deleted on a successful pass. Set `horizon_days` to an integer from 1 to 30;
 the template starts with 7 days. Values outside that range are rejected before Google access.
-The usual delay of up to two minutes still needs to be measured on real accounts.
+`poll_seconds` sets a positive integer interval between pass starts; the template uses
+600 seconds (10 minutes). The first pass starts immediately. If a pass takes longer
+than the interval, the next starts after it completes. Stop and restart `gallendar run`
+after changing the config. A source change can wait up to the configured interval
+plus pass duration under normal operation; real delay remains to be measured.
 
 ## Checks and build
 

@@ -152,7 +152,7 @@ to it.
 | 1 | user | Personal service, original brief | Multiple users change product boundaries; not in the MVP |
 | 3 | work accounts | User clarification: Aveni, Thira, Innowise | Two sources and one destination; both routes are checked |
 | 1 | destination per original | User clarification: Innowise only | Verify that nothing is written to Aveni and Thira |
-| 2 | minutes of usual delay | ANNEX §1: real time is not needed | Higher delay increases the risk of conflicts; measure from the source change to the result in destinations; no guarantee under failures is defined |
+| 10 | minutes between pass starts by default (600 seconds) | Current user decision, superseding the ANNEX two-minute usual-delay target | Configurable positive integer seconds; zero is rejected to prevent a tight loop. Longer intervals delay updates; measure interval plus pass duration, with no guarantee under failures. Validation tests cover zero, legacy values and ten minutes |
 | 2 | busy-time sources | User clarification: Aveni and Thira | Check each source independently |
 
 ## Current CLI parameters
@@ -167,9 +167,12 @@ identities account for the series and the occurrence's original start.
   up to 30 days. Invalid values are rejected before Google access. Reducing the
   window removes managed copies outside it on the next applied pass; source events
   are preserved. Boundary and rolling-window behavior are covered by Rust tests.
-- poll_seconds: 1 to 120 seconds between pass starts; example 60 seconds.
-  If a pass takes longer than the interval, the next one starts after it completes.
-  These settings do not prove the target delay is met without real measurement.
+- poll_seconds: positive integer seconds between pass starts; the template and current
+  live trial use 600 seconds (10 minutes). There is no additional product maximum.
+  The first pass starts immediately. If a pass takes longer than the interval, the
+  next one starts after it completes. Config changes take effect after restarting run.
+  Real synchronization delay includes waiting for the next pass and its duration;
+  failures can increase it further.
 - One writer on one host per namespace/config. A local lock
   prevents parallel runs of a config; there is no distributed lock.
 - auto_update: true by default; the installed CLI checks GitHub Release

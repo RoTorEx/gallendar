@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- Set the template polling interval to 600 seconds (10 minutes); `poll_seconds`
+  accepts positive integer seconds instead of the former 120-second limit.
+  Restart a running CLI after changing the interval.
+
 - Enforced one-way account separation for named calendars and destination-only
   writes at the Google HTTP boundary. Added create/update/delete and original-guest
   preservation checks so named-calendar mode cannot write to source accounts or primary calendars.

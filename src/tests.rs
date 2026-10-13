@@ -481,6 +481,23 @@ fn oauth_configuration_keeps_legacy_and_mixed_modes() {
 }
 
 #[test]
+fn polling_accepts_ten_minutes_and_rejects_a_zero_interval() {
+    let (mut config, _) = demo::fixture();
+    for seconds in [1, 60, 120, 600, 3600] {
+        config.poll_seconds = seconds;
+        config.validate().unwrap();
+    }
+    config.poll_seconds = 0;
+    assert!(
+        config
+            .validate()
+            .unwrap_err()
+            .to_string()
+            .contains("poll_seconds")
+    );
+}
+
+#[test]
 fn horizon_accepts_one_to_thirty_days_and_starts_at_now() {
     let (mut config, _) = demo::fixture();
     let now = Utc::now();

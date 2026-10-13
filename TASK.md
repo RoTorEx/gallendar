@@ -11,7 +11,7 @@ Scope: **Aveni & Thira → Innowise**. Rules: [BUSINESS.md](BUSINESS.md).
 - [ ] Agree on all-day, tentative, and how to detect a stop.
 - [ ] With a real colleague email configured for Aveni → Innowise, verify invitation
   delivery, acceptance, moving the copy, guest removal, and cancellation; confirm their busy time.
-- [ ] Measure the delay of up to two minutes with CLI run running. Autostart is deferred for now.
+- [ ] Measure synchronization delay with CLI run running at the configured interval (currently ten minutes). Autostart is deferred for now.
 
 Further releases and scope expansion require a separate request.
 The current request authorizes the public RoTorEx/gallendar, the first release v0.1.0,

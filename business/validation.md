@@ -21,8 +21,13 @@ resolved uniquely; no new calendar or primary-calendar copy was created.
   The pass stopped after that saved copy; the comparison was corrected and tested.
   Recovery reused it and created the remaining seven without duplicates.
 - Repeated dry-run and the first periodic applied pass reported create=0,
-  update=0, delete=0, unchanged=8. Periodic CLI run is active locally with a
+  update=0, delete=0, unchanged=8. Periodic CLI run initially used a
   rolling two-day horizon and 60-second polling; no autostart service was installed.
+- Later on 2026-10-13, the user changed polling to ten minutes. The installed CLI
+  and active config now accept `poll_seconds = 600`; the process was restarted.
+  Dry-run and the first applied pass after restart both reported create=0,
+  update=0, delete=0, unchanged=8. All 53 Rust tests and the required checks passed.
+  The ten-minute gap between subsequent live passes has not been timed independently.
 - Independent API read-back matched every managed copy to its source key,
   title, interval and configured guests. Every copy has Innowise as creator
   and Gallendar as organizer. The Innowise primary has no copies in this namespace;
@@ -120,5 +125,6 @@ or assumed results as completed.
 Additionally go through Busy/Free, Out of Office, the agreed meaning of tentative,
 declined invitations, the agreed all-day event rules, changing
 and cancelling one recurrence, changing the series, overlapping events, a repeated
-pass, a restart, and source unavailability. Measure the usual delay of up to
-two minutes from the source change to the observed destination result.
+pass, a restart, and source unavailability. Measure delay from the source change
+to the observed destination result against the configured interval (currently
+ten minutes) plus pass duration.

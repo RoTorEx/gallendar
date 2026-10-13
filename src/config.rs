@@ -173,10 +173,7 @@ impl Config {
             (1..=30).contains(&self.horizon_days),
             "horizon_days must be between 1 and 30"
         );
-        ensure!(
-            (1..=120).contains(&self.poll_seconds),
-            "poll_seconds must be between 1 and 120"
-        );
+        ensure!(self.poll_seconds > 0, "poll_seconds must be at least 1");
         let mut sources = HashSet::new();
         let mut targets = HashSet::new();
         let mut names = HashSet::new();
