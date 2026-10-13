@@ -477,3 +477,26 @@ fn oauth_configuration_keeps_legacy_and_mixed_modes() {
     );
     assert!(Cli::try_parse_from(["gallendar", "auth", "status", "--json"]).is_ok());
 }
+
+#[test]
+fn horizon_accepts_one_to_thirty_days_and_starts_at_now() {
+    let (mut config, _) = demo::fixture();
+    let now = Utc::now();
+    for days in [1, 7, 30] {
+        config.horizon_days = days;
+        config.validate().unwrap();
+        let window = config.window(now);
+        assert_eq!(window.start, now);
+        assert_eq!(window.end, now + Duration::days(i64::from(days)));
+    }
+    for days in [0, 31, 3650, u32::MAX] {
+        config.horizon_days = days;
+        assert!(
+            config
+                .validate()
+                .unwrap_err()
+                .to_string()
+                .contains("horizon_days")
+        );
+    }
+}

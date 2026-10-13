@@ -133,8 +133,11 @@ after all calendars are read successfully. This is a limitation of the current C
 product boundary for past and future remains an open task. Recurrence
 identities account for the series and the occurrence's original start.
 
-- horizon_days: 1 to 3650 days; the technical limit restricts overly large
-  recurrence expansions. The 30-day example is not a business default.
+- horizon_days: 1 to 30 days, with 7 days in the template and current setup.
+  User decision: start with one rolling week from now and allow configuration
+  up to 30 days. Invalid values are rejected before Google access. Reducing the
+  window removes managed copies outside it on the next applied pass; source events
+  are preserved. Boundary and rolling-window behavior are covered by Rust tests.
 - poll_seconds: 1 to 120 seconds between pass starts; example 60 seconds.
   If a pass takes longer than the interval, the next one starts after it completes.
   These settings do not prove the target delay is met without real measurement.

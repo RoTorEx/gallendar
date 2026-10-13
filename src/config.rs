@@ -166,8 +166,8 @@ impl Config {
             "namespace must not be empty"
         );
         ensure!(
-            (1..=3650).contains(&self.horizon_days),
-            "horizon_days must be between 1 and 3650"
+            (1..=30).contains(&self.horizon_days),
+            "horizon_days must be between 1 and 30"
         );
         ensure!(
             (1..=120).contains(&self.poll_seconds),

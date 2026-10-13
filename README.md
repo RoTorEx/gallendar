@@ -315,7 +315,7 @@ replacing all `REPLACE` values with real emails and Calendar IDs:
 ```toml
 service_account_key = "secrets/service-account.json"
 namespace = "gallendar-personal"
-horizon_days = 30
+horizon_days = 7
 poll_seconds = 60
 all_day_policy = "out_of_office_only"
 
@@ -477,7 +477,8 @@ a file lock prevents parallel runs of this config; there is no distributed
 lock between VPSs.
 
 The protected window runs from the current moment `horizon_days` ahead. Copies outside it
-are deleted on a successful pass; to extend protection, increase the horizon.
+are deleted on a successful pass. Set `horizon_days` to an integer from 1 to 30;
+the template starts with 7 days. Values outside that range are rejected before Google access.
 The usual delay of up to two minutes still needs to be measured on real accounts.
 
 ## Checks and build

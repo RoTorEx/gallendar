@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- Start with a configurable 7-day rolling synchronization window and reject
+  horizons outside 1–30 days before accessing Google.
+
 - Added per-account OAuth Desktop login: auth login/status, PKCE and state,
   email and scope verification, separate private refresh tokens and their refresh.
   TOML selects oauth/service_account globally or per account; the service key
