@@ -19,6 +19,8 @@ pub struct Config {
     pub accounts: Vec<Account>,
     #[serde(default)]
     pub routes: Option<Vec<Route>>,
+    #[serde(default = "auto_update_enabled")]
+    pub auto_update: bool,
 }
 
 #[derive(Clone, Copy, Deserialize, Serialize)]
@@ -56,6 +58,10 @@ pub enum MirrorMode {
     #[default]
     Masked,
     Original,
+}
+
+fn auto_update_enabled() -> bool {
+    true
 }
 
 fn default_title() -> String {

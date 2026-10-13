@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 set -eu
 
-repo="${GALLENDAR_INSTALL_REPO:-${GALLENDAR_RELEASE_REPO:-}}"
+repo="${GALLENDAR_INSTALL_REPO:-${GALLENDAR_RELEASE_REPO:-RoTorEx/gallendar}}"
 version="${GALLENDAR_VERSION:-latest}"
 install_dir="${GALLENDAR_INSTALL_DIR:-$HOME/.x-cli-gallendar}"
 config_dir="${GALLENDAR_CONFIG_DIR:-$HOME/.x-cli-gallendar}"
@@ -71,6 +71,16 @@ fi
 tar -xzf "$temp_dir/$archive" -C "$temp_dir" gallendar gallendar.example.toml
 [ -x "$temp_dir/gallendar" ] || { echo "ERROR: archive does not contain gallendar" >&2; exit 1; }
 [ -f "$temp_dir/gallendar.example.toml" ] || { echo "ERROR: archive does not contain gallendar.example.toml" >&2; exit 1; }
+
+actual_version="$("$temp_dir/gallendar" -V)"
+printf '%s\n' "$actual_version" | grep -Eq '^gallendar [0-9]+\.[0-9]+\.[0-9]+$' || {
+    echo "ERROR: downloaded binary returned an invalid version" >&2; exit 1;
+}
+if [ "$version" != latest ]; then
+    [ "$actual_version" = "gallendar ${version#v}" ] || {
+        echo "ERROR: downloaded version differs from requested version" >&2; exit 1;
+    }
+fi
 
 mkdir -p "$install_dir/bin" "$config_dir"
 chmod 0700 "$install_dir" "$config_dir"

@@ -43,7 +43,7 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     /// Create the config template; interactively open it in the editor
-    #[command(visible_alias = "init")]
+    #[command(visible_aliases = ["init", "setup-config"])]
     Setup {
         /// Write the template without opening an editor
         #[arg(long)]
@@ -63,6 +63,9 @@ enum Command {
         /// GitHub OWNER/REPO (or GALLENDAR_RELEASE_REPO)
         #[arg(long)]
         repo: Option<String>,
+        /// Internal background update worker
+        #[arg(long, hide = true)]
+        automatic: bool,
     },
     /// Check source-read and destination-write roles without changing Google data
     Doctor,
@@ -228,9 +231,9 @@ fn run() -> Result<()> {
             println!("gallendar {}", env!("CARGO_PKG_VERSION"));
             return Ok(());
         }
-        Command::Update { repo } => {
+        Command::Update { repo, automatic } => {
             ensure!(!cli.json, "update does not support --json");
-            return update::run(repo.clone());
+            return update::run(repo.clone(), *automatic);
         }
         Command::Demo => return print(demo::run()?, cli.json),
         _ => {}
@@ -254,6 +257,9 @@ fn run() -> Result<()> {
         _ => {}
     }
     let config = Config::load(&path)?;
+    if config.auto_update {
+        update::start_automatic();
+    }
     match command {
         Command::Doctor => {
             let mut api = google::Google::connect(&config.service_account_key)?;

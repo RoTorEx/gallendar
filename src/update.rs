@@ -1,26 +1,105 @@
 use anyhow::{Context, Result, bail};
 use flate2::read::GzDecoder;
+use fs2::FileExt;
 use sha2::{Digest, Sha256};
 use std::env;
 use std::fs;
+use std::fs::OpenOptions;
 use std::io::Cursor;
-use std::os::unix::fs::PermissionsExt;
+use std::io::Write;
+use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tar::Archive;
 
 const APP_NAME: &str = "gallendar";
+const DEFAULT_REPO: &str = "RoTorEx/gallendar";
+const AUTO_UPDATE_INTERVAL_SECONDS: u64 = 24 * 60 * 60;
 const MACOS_AARCH64_ASSET: &str = "gallendar-macos-aarch64.tar.gz";
 const MACOS_X86_64_ASSET: &str = "gallendar-macos-x86_64.tar.gz";
 const LINUX_X86_64_ASSET: &str = "gallendar-linux-x86_64.tar.gz";
 
-pub fn run(repo: Option<String>) -> Result<()> {
+// The automatic worker is an intended product process, not a CLI task dependency.
+// It is isolated from command output and never runs for local development binaries.
+pub fn start_automatic() {
+    let _ = (|| -> Result<()> {
+        let home = crate::home()?;
+        let executable = env::current_exe()?;
+        if executable != home.join("bin/gallendar") || !automatic_due(&home, now_seconds()?) {
+            return Ok(());
+        }
+        let log = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .mode(0o600)
+            .open(home.join("update.log"))?;
+        let mut worker = Command::new(executable)
+            .args(["update", "--automatic"])
+            .stdin(Stdio::null())
+            .stdout(log.try_clone()?)
+            .stderr(log)
+            .spawn()?;
+        std::thread::spawn(move || {
+            let _ = worker.wait();
+        });
+        Ok(())
+    })();
+}
+
+pub fn run(repo: Option<String>, automatic: bool) -> Result<()> {
+    let executable = env::current_exe()?;
+    let parent = executable.parent().context("Executable has no parent")?;
+    let lock = OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .read(true)
+        .write(true)
+        .mode(0o600)
+        .open(parent.join(".gallendar-update.lock"))?;
+    if lock.try_lock_exclusive().is_err() {
+        if automatic {
+            return Ok(());
+        }
+        bail!("Another gallendar update is already running");
+    }
+    if automatic {
+        let home = crate::home()?;
+        if executable != home.join("bin/gallendar") {
+            return Ok(());
+        }
+        let now = now_seconds()?;
+        if !automatic_due(&home, now) {
+            return Ok(());
+        }
+        let mut stamp = OpenOptions::new()
+            .create(true)
+            .truncate(true)
+            .write(true)
+            .mode(0o600)
+            .open(home.join("update-last-check"))?;
+        writeln!(stamp, "{now}")?;
+    }
+    run_locked(repo, automatic)
+}
+
+fn now_seconds() -> Result<u64> {
+    Ok(SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs())
+}
+
+fn automatic_due(home: &Path, now: u64) -> bool {
+    let last = fs::read_to_string(home.join("update-last-check"))
+        .ok()
+        .and_then(|s| s.trim().parse::<u64>().ok());
+    last.is_none_or(|last| now.saturating_sub(last) >= AUTO_UPDATE_INTERVAL_SECONDS)
+}
+
+fn run_locked(repo: Option<String>, automatic: bool) -> Result<()> {
     let repo = repo
         .or_else(|| env::var("GALLENDAR_RELEASE_REPO").ok())
         .or_else(|| option_env!("GALLENDAR_RELEASE_REPO").map(str::to_owned))
         .filter(|value| !value.trim().is_empty())
-        .context("Release repository is not configured; use --repo OWNER/REPO or GALLENDAR_RELEASE_REPO (no release has been published yet)")?;
+        .unwrap_or_else(|| DEFAULT_REPO.to_owned());
     validate_repo(&repo)?;
     let release_base_url = format!("https://github.com/{repo}/releases/latest/download");
     let asset = release_asset_for(env::consts::OS, env::consts::ARCH).ok_or_else(|| {
@@ -34,6 +113,27 @@ pub fn run(repo: Option<String>) -> Result<()> {
     let client = reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(120))
         .build()?;
+
+    if automatic {
+        let release: serde_json::Value = client
+            .get(format!(
+                "https://api.github.com/repos/{repo}/releases/latest"
+            ))
+            .header(reqwest::header::USER_AGENT, "gallendar")
+            .timeout(std::time::Duration::from_secs(10))
+            .send()?
+            .error_for_status()?
+            .json()?;
+        let tag = release
+            .get("tag_name")
+            .and_then(|v| v.as_str())
+            .context("Latest release has no tag")?;
+        let latest = version_number(&format!("gallendar {}", tag.trim_start_matches('v')))?;
+        let current = version_number(&format!("gallendar {}", env!("CARGO_PKG_VERSION")))?;
+        if latest <= current {
+            return Ok(());
+        }
+    }
 
     let archive_url = format!("{release_base_url}/{asset}");
     let checksum_url = format!("{archive_url}.sha256");
@@ -56,6 +156,9 @@ pub fn run(repo: Option<String>) -> Result<()> {
         return Ok(());
     }
 
+    if version_number(&updated_version)? < version_number(&current_version)? {
+        bail!("Latest release is older than this binary; refusing downgrade");
+    }
     install_binary(&updated, &current_exe)?;
     println!("Updated {current_version} -> {updated_version}");
     Ok(())
@@ -153,13 +256,25 @@ fn read_version(binary: &Path) -> Result<String> {
 }
 
 fn valid_version_output(version: &str) -> bool {
-    version.strip_prefix("gallendar ").is_some_and(|v| {
-        let parts: Vec<_> = v.split('.').collect();
-        parts.len() == 3
-            && parts
-                .iter()
-                .all(|p| !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit()))
-    })
+    version_number(version).is_ok()
+}
+
+fn version_number(text: &str) -> Result<[u64; 3]> {
+    let number = text
+        .strip_prefix("gallendar ")
+        .context("Invalid binary name in version")?;
+    let parts = number
+        .split('.')
+        .map(|p| {
+            if p.is_empty() || !p.bytes().all(|b| b.is_ascii_digit()) {
+                bail!("Invalid release version");
+            }
+            Ok(p.parse::<u64>()?)
+        })
+        .collect::<Result<Vec<_>>>()?;
+    parts
+        .try_into()
+        .map_err(|_| anyhow::anyhow!("Invalid release version"))
 }
 
 fn install_binary(source: &Path, destination: &Path) -> Result<()> {
@@ -291,5 +406,81 @@ mod tests {
         assert!(valid_version_output("gallendar 0.1.0"));
         assert!(!valid_version_output("other 0.1.0"));
         assert!(!valid_version_output("gallendar 0.1.0 extra"));
+    }
+    #[test]
+    fn automatic_checks_are_daily_and_clock_rollback_does_not_trigger_them() {
+        let temp = UpdateTempDir::create().unwrap();
+        assert!(automatic_due(temp.path(), 100));
+        fs::write(temp.path().join("update-last-check"), "100").unwrap();
+        assert!(!automatic_due(temp.path(), 99));
+        assert!(!automatic_due(
+            temp.path(),
+            100 + AUTO_UPDATE_INTERVAL_SECONDS - 1
+        ));
+        assert!(automatic_due(
+            temp.path(),
+            100 + AUTO_UPDATE_INTERVAL_SECONDS
+        ));
+        fs::write(temp.path().join("update-last-check"), "corrupt").unwrap();
+        assert!(automatic_due(temp.path(), 100));
+    }
+
+    #[test]
+    fn version_comparison_is_numeric_and_rejects_overflow() {
+        assert!(
+            version_number("gallendar 0.10.0").unwrap()
+                > version_number("gallendar 0.9.9").unwrap()
+        );
+        assert!(version_number("gallendar 0.0.9999999999999999999999999").is_err());
+    }
+
+    #[test]
+    fn replacement_preserves_old_binary_on_failure_and_cleans_staging_file() {
+        let temp = UpdateTempDir::create().unwrap();
+        let destination = temp.path().join(APP_NAME);
+        let source = temp.path().join("downloaded");
+        fs::write(&destination, b"old").unwrap();
+        assert!(install_binary(&source, &destination).is_err());
+        assert_eq!(fs::read(&destination).unwrap(), b"old");
+        fs::write(&source, b"new").unwrap();
+        install_binary(&source, &destination).unwrap();
+        assert_eq!(fs::read(&destination).unwrap(), b"new");
+        assert_eq!(fs::read_dir(temp.path()).unwrap().count(), 2);
+    }
+
+    #[test]
+    fn extraction_rejects_duplicate_or_symlink_binary_and_ignores_config() {
+        fn archive(entries: &[(&str, tar::EntryType, &[u8])]) -> Vec<u8> {
+            let gzip = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+            let mut builder = tar::Builder::new(gzip);
+            for (name, kind, content) in entries {
+                let mut header = tar::Header::new_gnu();
+                header.set_size(content.len() as u64);
+                header.set_mode(0o755);
+                header.set_entry_type(*kind);
+                if kind.is_symlink() {
+                    header.set_link_name("outside").unwrap();
+                }
+                header.set_cksum();
+                builder.append_data(&mut header, name, *content).unwrap();
+            }
+            builder.into_inner().unwrap().finish().unwrap()
+        }
+        let temp = UpdateTempDir::create().unwrap();
+        let destination = temp.path().join("new-binary");
+        let bytes = archive(&[
+            ("config.toml", tar::EntryType::Regular, b"unwanted"),
+            (APP_NAME, tar::EntryType::Regular, b"replacement"),
+        ]);
+        extract_binary(&bytes, &destination).unwrap();
+        assert_eq!(fs::read(&destination).unwrap(), b"replacement");
+        assert_eq!(fs::read_dir(temp.path()).unwrap().count(), 1);
+        let duplicate = archive(&[
+            (APP_NAME, tar::EntryType::Regular, b"first"),
+            (APP_NAME, tar::EntryType::Regular, b"second"),
+        ]);
+        assert!(extract_binary(&duplicate, &destination).is_err());
+        let symlink = archive(&[(APP_NAME, tar::EntryType::Symlink, b"")]);
+        assert!(extract_binary(&symlink, &destination).is_err());
     }
 }

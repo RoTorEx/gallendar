@@ -40,6 +40,18 @@ title = "Busy"
 полностью исключено, оно больше не читается и старые копии в нём остаются;
 их очистку следует планировать отдельно. Namespace сохраняйте стабильным.
 
+## Установка из GitHub
+
+```bash
+curl -fsSL https://github.com/RoTorEx/gallendar/releases/latest/download/gallendar-install.sh -o /tmp/gallendar-install.sh
+sh /tmp/gallendar-install.sh
+rm /tmp/gallendar-install.sh
+gallendar version
+gallendar update
+```
+
+Installer сохраняет существующий конфиг и проверяет SHA-256 и версию бинарника.
+
 ## Быстрый запуск
 
 ```bash
@@ -63,17 +75,30 @@ gallendar demo
 
 ## Базовые команды
 
-- `setup` (алиас `init`) — создаёт шаблон и в интерактивном терминале открывает
+- `setup` (алиасы `init`, `setup-config`) — создаёт шаблон и в интерактивном терминале открывает
   его в редакторе; `setup --no-edit` подходит для скриптов. Существующий конфиг
   сохраняется. `EDITOR`/`VISUAL` задаёт путь к исполняемому файлу редактора.
 - `config` — путь к конфигу; `config --edit` открывает его в редакторе.
 - `home` — домашний каталог приложения `~/.x-cli-gallendar`.
 - `version`, `-V`, `--version` — установленная версия; `--help` — справка.
-- `update --repo OWNER/REPO` — обновление текущего бинарника из последнего GitHub
-  Release с проверкой SHA-256 и версии. Вместо флага можно задать
-  `GALLENDAR_RELEASE_REPO`. Выпущенные GitHub Actions бинарники получают свой
-  репозиторий при сборке и поддерживают `update` без флага. Для текущей локальной
-  сборки репозиторий релизов ещё не настроен; релиз не опубликован.
+- `update` — обновление текущего бинарника из последнего публичного
+  [GitHub Release](https://github.com/RoTorEx/gallendar/releases) с проверкой
+  SHA-256 и версии, атомарной заменой и запретом понижения версии.
+  Конфиг и ключи сохраняются. `--repo OWNER/REPO` и `GALLENDAR_RELEASE_REPO`
+  позволяют явно выбрать другой репозиторий.
+
+Автообновление включено через `auto_update = true` в корне TOML (значение
+по умолчанию для старых конфигов тоже true). При запуске doctor, sync, run
+или availability с валидным конфигом установленный CLI запускает фоновую
+проверку не чаще раза в 24 часа. Проверяется номер релиза; архив скачивается
+только при новой версии. Ошибки не мешают основной команде и сохраняются в
+`~/.x-cli-gallendar/update.log`; попытка учитывается и при ошибке, чтобы
+не повторять сетевой запрос на каждом запуске. `auto_update = false` отключает
+это поведение. Справка, version/home/config/setup и offline demo не обращаются
+к сети. Локальные бинарники разработки не обновляются автоматически.
+Новая версия используется со следующего запуска; уже работающий run продолжает
+текущую версию. Автообновление не создаёт системный сервис или расписание.
+
 
 Базовый интерфейс и доставка согласованы с соседями `linkdeck`, `hop`, `shelve`.
 
@@ -390,7 +415,8 @@ make smoke-install # архив + SHA-256 + установка в изолиро
 
 ## Релизы
 
-После настройки правильного `origin`, коммита изменений и отдельного запроса
+Публичный репозиторий: [RoTorEx/gallendar](https://github.com/RoTorEx/gallendar).
+После коммита изменений и отдельного запроса
 релиза выполнить интерактивно:
 
 ```bash
@@ -404,12 +430,12 @@ make release-push
 и annotated tag. Сам он не публикует. `make release-push` отправляет `main`
 и annotated tags без force; release tag должен указывать на HEAD.
 
-Tag запускает GitHub Actions: нативные сборки macOS Apple Silicon, macOS Intel
+Push main и ручной запуск проверяют сборки без публикации. Tag запускает публикацию GitHub Actions: нативные сборки macOS Apple Silicon, macOS Intel
 и Linux x86_64 для VPS, проверка версии, упаковка, smoke install и GitHub Release
 с архивами, SHA-256 и `gallendar-install.sh`. Linux ARM пока собирается из исходников.
-Публичный installer принимает `--version`, `--archive`, `--install-dir`,
-`--config-dir`, `--no-path-update`; для скачивания нужен
-`GALLENDAR_INSTALL_REPO=OWNER/REPO`. Конфиги при обновлении сохраняются.
+Публичный installer по умолчанию использует `RoTorEx/gallendar` и принимает `--version`, `--archive`, `--install-dir`,
+`--config-dir`, `--no-path-update`; репозиторий можно переопределить
+через `GALLENDAR_INSTALL_REPO=OWNER/REPO`. Конфиги при обновлении сохраняются.
 
 ## Документы и Kernel
 

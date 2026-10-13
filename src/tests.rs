@@ -419,3 +419,30 @@ fn route_validation_and_new_toml_template() {
     assert_eq!(removed.counts.delete, 1);
     assert_eq!(removed.counts.unchanged, 1);
 }
+
+#[test]
+fn basic_commands_parse_without_calendar_credentials() {
+    for args in [
+        vec!["gallendar", "--help"],
+        vec!["gallendar", "--version"],
+        vec!["gallendar", "version"],
+        vec!["gallendar", "home"],
+        vec!["gallendar", "config"],
+        vec!["gallendar", "config", "--edit"],
+        vec!["gallendar", "setup", "--no-edit"],
+        vec!["gallendar", "init", "--no-edit"],
+        vec!["gallendar", "setup-config", "--no-edit"],
+        vec!["gallendar", "update"],
+        vec!["gallendar", "update", "--automatic"],
+    ] {
+        if args[1].starts_with("--") {
+            let error = Cli::try_parse_from(args).err().unwrap();
+            assert!(matches!(
+                error.kind(),
+                clap::error::ErrorKind::DisplayHelp | clap::error::ErrorKind::DisplayVersion
+            ));
+        } else {
+            assert!(Cli::try_parse_from(args).is_ok());
+        }
+    }
+}

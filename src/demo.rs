@@ -95,6 +95,7 @@ pub fn fixture() -> (Config, Memory) {
             all_day_policy: AllDayPolicy::Busy,
             accounts,
             routes: None,
+            auto_update: false,
         },
         memory,
     )
