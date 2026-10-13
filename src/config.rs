@@ -11,7 +11,11 @@ pub const EXAMPLE: &str = include_str!("../gallendar.example.toml");
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
+    #[serde(default)]
     pub service_account_key: PathBuf,
+    #[serde(default)]
+    pub auth: AuthMode,
+    pub oauth: Option<OAuthConfig>,
     pub namespace: String,
     pub horizon_days: u32,
     pub poll_seconds: u64,
@@ -33,12 +37,28 @@ pub enum AllDayPolicy {
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Account {
+    pub auth: Option<AuthMode>,
     pub name: String,
     pub owner_email: String,
     #[serde(default)]
     pub source: String,
     #[serde(default)]
     pub target: String,
+}
+
+#[derive(Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum AuthMode {
+    #[default]
+    ServiceAccount,
+    Oauth,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct OAuthConfig {
+    pub client: PathBuf,
+    pub tokens_dir: PathBuf,
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -105,6 +125,12 @@ impl Config {
     }
 
     pub fn load(path: &Path) -> Result<Self> {
+        let config = Self::load_for_auth(path)?;
+        config.validate()?;
+        Ok(config)
+    }
+
+    pub fn load_for_auth(path: &Path) -> Result<Self> {
         let contents = std::fs::read_to_string(path)
             .context("Cannot read config; run `gallendar init` first")?;
         let mut config: Self = toml::from_str(&contents).map_err(|_| {
@@ -112,12 +138,20 @@ impl Config {
                 "Invalid config; compare with gallendar.example.toml (values omitted for privacy)"
             )
         })?;
-        config.validate()?;
         if config.service_account_key.is_relative() {
             config.service_account_key = path
                 .parent()
                 .unwrap_or(Path::new("."))
                 .join(&config.service_account_key);
+        }
+        if let Some(oauth) = &mut config.oauth {
+            let parent = path.parent().unwrap_or(Path::new("."));
+            if oauth.client.is_relative() {
+                oauth.client = parent.join(&oauth.client);
+            }
+            if oauth.tokens_dir.is_relative() {
+                oauth.tokens_dir = parent.join(&oauth.tokens_dir);
+            }
         }
         Ok(config)
     }

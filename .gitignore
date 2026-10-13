@@ -30,3 +30,7 @@ service-account*.json
 /gallendar
 
 /.gallendar-update.lock
+
+# Google Desktop OAuth clients and per-account tokens
+/oauth-client*.json
+/oauth-tokens/

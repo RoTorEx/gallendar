@@ -103,6 +103,91 @@ gallendar demo
 
 Базовый интерфейс и доставка согласованы с соседями `linkdeck`, `hop`, `shelve`.
 
+## Авторизация: сервисный ключ или OAuth
+
+Оба способа поддерживаются. Старый конфиг без `auth` использует сервисный ключ;
+существующий `service_account_key` сохраняется. В корне TOML выберите:
+
+```toml
+auth = "service_account"
+service_account_key = "secrets/service-account.json"
+```
+
+Этот режим требует sharing источников с чтением деталей и назначения с записью.
+В проверенных настройках Aveni и Innowise внешний sharing ограничен free/busy:
+сервисный ключ в таком случае не подходит для текущего чтения событий и записи
+копий. Ключ успешно проверен, но доступ к календарям не подтверждён.
+
+Для пользовательского OAuth создайте в том же Cloud-проекте Google Auth platform:
+[Branding](https://console.cloud.google.com/auth/branding) → Get started,
+аудитория External; [Audience](https://console.cloud.google.com/auth/audience) →
+Test users для первого входа или In production для регулярной эксплуатации.
+В [Clients](https://console.cloud.google.com/auth/clients) выберите Create client →
+Desktop app и скачайте JSON. Это другой файл, чем ключ service account.
+Храните его в `~/.x-cli-gallendar/secrets/oauth-client.json` с правами 0600.
+Доступ к API может потребовать одобрения администратора рабочей организации.
+
+В существующем конфиге измените корневой `auth` и добавьте `[oauth]` перед
+первым `[[accounts]]`. Остальные корневые параметры должны оставаться выше `[oauth]`:
+
+```toml
+auth = "oauth"
+# Остальные корневые параметры, включая service_account_key, namespace и horizon_days.
+
+[oauth]
+client = "secrets/oauth-client.json"
+tokens_dir = "secrets/oauth"
+
+# Далее существующие [[accounts]] и [[routes]].
+```
+
+Относительные пути считаются от каталога config.toml. Заполните реальные
+`owner_email` для трёх аккаунтов и сохраните явные маршруты. Вход возможен до
+заполнения Calendar ID; doctor/sync/run требуют валидных ID.
+
+```bash
+gallendar auth login --account aveni
+gallendar auth login --account thira
+gallendar auth login --account innowise
+gallendar auth status
+gallendar doctor
+gallendar sync --dry-run
+```
+
+В каждом открывшемся браузере выбирайте соответствующий рабочий аккаунт.
+CLI проверяет email и полученные права перед сохранением. Источники запрашивают
+чтение событий, назначения — изменение событий; дополнительно нужны free/busy
+и проверка email. OAuth использует PKCE, state и локальный callback на 127.0.0.1.
+`--no-browser` печатает ссылку без открытия браузера; её нужно открыть на том же
+компьютере. Ожидание входа ограничено 180 секундами. Отмена, неправильный аккаунт
+или недостаточные права сохраняют прежние локальные токены.
+
+Для смешанного доступа задайте `auth = "oauth"` или `auth = "service_account"`
+внутри нужного `[[accounts]]`: это переопределяет корневой режим только для него.
+`auth status` проверяет наличие и соответствие локальных credentials; это не
+проверка действительности Google-доступа. Секреты он не выводит и к сети не обращается.
+
+Каждый аккаунт хранится в отдельном файле `tokens_dir/<name>.json` (0600),
+каталог — 0700. Refresh token используется для получения нового access token на
+каждом проходе; браузер повторно не открывается. Вход в другой аккаунт сохраняет
+остальные токены. В режиме Testing Google ограничивает Calendar refresh token
+семью днями; In production убирает этот срок, но отзыв доступа и корпоративные
+ограничения могут потребовать повторного входа.
+[Правила срока действия Google](https://developers.google.com/identity/protocols/oauth2#expiration).
+
+Для переноса на сервер выполните вход на Mac и передайте по SSH OAuth client,
+каталог токенов и TOML, сохранив права и относительные пути. Не запускайте два
+писателя одного namespace одновременно. Готовые серверные сборки пока отложены;
+текущая платформа доставки — Apple Silicon. Автозапуска нет: run работает, пока
+жив процесс. После проверки реальной доступности назначения:
+
+```bash
+gallendar run --apply --availability-confirmed
+```
+
+Добавление участников не входит в эту реализацию: оба режима по-прежнему создают
+приватные Busy-копии без гостей и без Google Meet ссылок.
+
 ## Справочная инструкция Google для прежнего эксперимента
 
 Эта инструкция сохранена для справки о настройке Google Cloud и sharing.

@@ -1,5 +1,5 @@
 use crate::{
-    config::Window,
+    config::{AuthMode, Config, Window},
     engine::CalendarApi,
     model::{Busy, Event, Snapshot},
 };
@@ -13,7 +13,11 @@ use reqwest::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use std::{collections::HashSet, path::Path, time::Duration};
+use std::{
+    collections::{HashMap, HashSet},
+    path::Path,
+    time::Duration,
+};
 
 const TOKEN_URL: &str = "https://oauth2.googleapis.com/token";
 const API_URL: &str = "https://www.googleapis.com/calendar/v3/";
@@ -56,6 +60,7 @@ pub struct Google {
     client: Client,
     token: String,
     base: String,
+    tokens: HashMap<String, String>,
 }
 
 impl Google {
@@ -111,7 +116,46 @@ impl Google {
             client,
             token: token.access_token,
             base: API_URL.into(),
+            tokens: HashMap::new(),
         })
+    }
+
+    pub fn connect_config(config: &Config) -> Result<Self> {
+        let mut api = Self {
+            client: Client::builder()
+                .timeout(Duration::from_secs(30))
+                .redirect(reqwest::redirect::Policy::none())
+                .build()?,
+            token: String::new(),
+            base: API_URL.into(),
+            tokens: HashMap::new(),
+        };
+        for account in &config.accounts {
+            if !config
+                .routes()
+                .iter()
+                .any(|r| r.from == account.name || r.to == account.name)
+            {
+                continue;
+            }
+            let token = match account.auth.unwrap_or(config.auth) {
+                AuthMode::ServiceAccount => {
+                    if api.token.is_empty() {
+                        api.token = Self::connect(&config.service_account_key)?.token;
+                    }
+                    api.token.clone()
+                }
+                AuthMode::Oauth => crate::oauth::access_token(config, account)
+                    .with_context(|| format!("OAuth account {}", account.name))?,
+            };
+            for calendar in [&account.source, &account.target]
+                .into_iter()
+                .filter(|id| !id.is_empty())
+            {
+                api.tokens.insert(calendar.clone(), token.clone());
+            }
+        }
+        Ok(api)
     }
 
     fn events_url(&self, calendar: &str, id: Option<&str>) -> Result<Url> {
@@ -130,12 +174,18 @@ impl Google {
 
     fn request(
         &self,
+        calendar: &str,
         method: Method,
         url: Url,
         payload: Option<&Value>,
         etag: Option<&str>,
     ) -> Result<Response> {
-        let mut request = self.client.request(method, url).bearer_auth(&self.token);
+        let token = self.tokens.get(calendar).unwrap_or(&self.token);
+        ensure!(
+            !token.is_empty(),
+            "No credentials configured for this calendar"
+        );
+        let mut request = self.client.request(method, url).bearer_auth(token);
         if let Some(payload) = payload {
             request = request.json(payload);
         }
@@ -184,7 +234,7 @@ impl Google {
                     query.append_pair("pageToken", token);
                 }
             }
-            let response = self.request(Method::GET, url, None, None)?;
+            let response = self.request(calendar, Method::GET, url, None, None)?;
             ensure!(
                 response.status().is_success(),
                 "Cannot list Google events (HTTP {}); check sharing and API permissions",
@@ -220,6 +270,7 @@ impl Google {
 
     fn get(&self, calendar: &str, id: &str) -> Result<Option<Event>> {
         let response = self.request(
+            calendar,
             Method::GET,
             self.events_url(calendar, Some(id))?,
             None,
@@ -257,6 +308,7 @@ impl Google {
     ) -> Result<Value> {
         let payload = json!({ "timeMin": start.to_rfc3339(), "timeMax": end.to_rfc3339(), "items": [{ "id": calendar }] });
         let response = self.request(
+            calendar,
             Method::POST,
             Url::parse(&format!("{}freeBusy", self.base))?,
             Some(&payload),
@@ -302,8 +354,13 @@ impl CalendarApi for Google {
         let id = format!("gld{}", uuid::Uuid::new_v4().simple());
         let mut url = self.events_url(calendar, None)?;
         url.query_pairs_mut().append_pair("sendUpdates", "none");
-        let response =
-            self.request(Method::POST, url, Some(&busy.payload(&id, namespace)), None)?;
+        let response = self.request(
+            calendar,
+            Method::POST,
+            url,
+            Some(&busy.payload(&id, namespace)),
+            None,
+        )?;
         ensure!(
             response.status().is_success(),
             "Create clone failed (HTTP {}); rerun to reconcile",
@@ -324,6 +381,7 @@ impl CalendarApi for Google {
         url.query_pairs_mut().append_pair("sendUpdates", "none");
         // Full replacement also removes accidentally introduced sensitive fields.
         let response = self.request(
+            calendar,
             Method::PUT,
             url,
             Some(&busy.payload(id, namespace)),
@@ -351,6 +409,7 @@ impl CalendarApi for Google {
         let mut url = self.events_url(calendar, Some(id))?;
         url.query_pairs_mut().append_pair("sendUpdates", "none");
         let response = self.request(
+            calendar,
             Method::DELETE,
             url,
             None,
@@ -428,6 +487,7 @@ mod tests {
                     .unwrap(),
                 token: "test-only-token".into(),
                 base,
+                tokens: HashMap::new(),
             },
             handle,
             requests,
@@ -535,5 +595,43 @@ mod tests {
                 .is_err()
         );
         thread.join().unwrap();
+    }
+    #[test]
+    fn calendar_requests_use_their_own_identity_including_freebusy() {
+        let page = json!({"timeZone":"Europe/Warsaw", "accessRole":"reader", "items":[]});
+        let busy = json!({"calendars":{"target":{"busy":[]}}});
+        let (mut api, worker, requests) =
+            server(vec![(200, page.clone()), (200, page), (200, busy)]);
+        api.tokens.insert("source".into(), "source-token".into());
+        api.tokens.insert("target".into(), "target-token".into());
+        let start = Utc::now();
+        api.source(
+            "source",
+            &Window {
+                start,
+                end: start + chrono::Duration::days(1),
+            },
+        )
+        .unwrap();
+        api.clones("target", "namespace").unwrap();
+        api.availability("target", start, start + chrono::Duration::hours(1))
+            .unwrap();
+        worker.join().unwrap();
+        let requests = requests.lock().unwrap();
+        assert!(
+            requests[0]
+                .to_lowercase()
+                .contains("authorization: bearer source-token")
+        );
+        assert!(
+            requests[1]
+                .to_lowercase()
+                .contains("authorization: bearer target-token")
+        );
+        assert!(
+            requests[2]
+                .to_lowercase()
+                .contains("authorization: bearer target-token")
+        );
     }
 }

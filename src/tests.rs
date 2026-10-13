@@ -446,3 +446,34 @@ fn basic_commands_parse_without_calendar_credentials() {
         }
     }
 }
+
+#[test]
+fn oauth_configuration_keeps_legacy_and_mixed_modes() {
+    let legacy: Config = toml::from_str(config::EXAMPLE).unwrap();
+    assert!(legacy.auth == config::AuthMode::ServiceAccount);
+    let text = config::EXAMPLE
+        .replace("auth = \"service_account\"", "auth = \"oauth\"")
+        .replace("# [oauth]", "[oauth]")
+        .replace("# client =", "client =")
+        .replace("# tokens_dir =", "tokens_dir =")
+        .replace(
+            "name = \"innowise\"",
+            "name = \"innowise\"\nauth = \"service_account\"",
+        );
+    let oauth: Config = toml::from_str(&text).unwrap();
+    assert!(oauth.auth == config::AuthMode::Oauth);
+    assert!(oauth.accounts[2].auth == Some(config::AuthMode::ServiceAccount));
+    assert!(oauth.oauth.is_some());
+    assert!(
+        Cli::try_parse_from([
+            "gallendar",
+            "auth",
+            "login",
+            "--account",
+            "aveni",
+            "--no-browser"
+        ])
+        .is_ok()
+    );
+    assert!(Cli::try_parse_from(["gallendar", "auth", "status", "--json"]).is_ok());
+}

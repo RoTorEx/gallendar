@@ -66,6 +66,7 @@ impl CalendarApi for Memory {
 pub fn fixture() -> (Config, Memory) {
     let accounts: Vec<_> = (0..4)
         .map(|i| Account {
+            auth: None,
             name: format!("account-{i}"),
             owner_email: format!("owner-{i}@example.invalid"),
             source: format!("source-{i}"),
@@ -88,6 +89,8 @@ pub fn fixture() -> (Config, Memory) {
     }
     (
         Config {
+            auth: Default::default(),
+            oauth: None,
             service_account_key: PathBuf::new(),
             namespace: "demo".into(),
             horizon_days: 30,

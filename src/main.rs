@@ -3,6 +3,7 @@ mod demo;
 mod engine;
 mod google;
 mod model;
+mod oauth;
 mod update;
 
 use anyhow::{Context, Result, bail, ensure};
@@ -67,6 +68,11 @@ enum Command {
         #[arg(long, hide = true)]
         automatic: bool,
     },
+    /// Sign in per account or inspect locally stored credentials
+    Auth {
+        #[command(subcommand)]
+        action: AuthAction,
+    },
     /// Check source-read and destination-write roles without changing Google data
     Doctor,
     /// Reconcile once; dry-run unless --apply is supplied
@@ -86,6 +92,20 @@ enum Command {
     },
     /// Run four-calendar synchronization locally with synthetic data (no credentials)
     Demo,
+}
+
+#[derive(Subcommand)]
+enum AuthAction {
+    /// Sign in to one Google account using a Desktop OAuth client
+    Login {
+        #[arg(long)]
+        account: String,
+        /// Print the URL without opening a browser (callback still runs locally)
+        #[arg(long)]
+        no_browser: bool,
+    },
+    /// Check local credentials without contacting Google
+    Status,
 }
 
 #[derive(Args)]
@@ -189,7 +209,7 @@ fn sync(config: &Config, args: &SyncArgs, as_json: bool) -> Result<()> {
         !args.apply || args.availability_confirmed,
         "Writing requires --availability-confirmed after the real scheduling check; dry-run needs no acknowledgement"
     );
-    let mut api = google::Google::connect(&config.service_account_key)?;
+    let mut api = google::Google::connect_config(config)?;
     let planned = engine::plan(&mut api, config, &config.window(Utc::now()))?;
     // Always expose intended changes before mutating. No source contents in output.
     print(
@@ -256,13 +276,27 @@ fn run() -> Result<()> {
         }
         _ => {}
     }
+    if let Command::Auth { action } = command {
+        let config = Config::load_for_auth(&path)?;
+        return match action {
+            AuthAction::Login {
+                account,
+                no_browser,
+            } => {
+                ensure!(!cli.json, "auth login does not support --json");
+                let _lock = lock(&path)?;
+                oauth::login(&config, account, *no_browser)
+            }
+            AuthAction::Status => print(oauth::status(&config), cli.json),
+        };
+    }
     let config = Config::load(&path)?;
     if config.auto_update {
         update::start_automatic();
     }
     match command {
         Command::Doctor => {
-            let mut api = google::Google::connect(&config.service_account_key)?;
+            let mut api = google::Google::connect_config(&config)?;
             let namespace = model::digest(&[&config.namespace]);
             let window = config.window(Utc::now());
             let mut checks = Vec::new();
@@ -344,7 +378,7 @@ fn run() -> Result<()> {
                 .context("end must be RFC3339 with an offset")?
                 .with_timezone(&Utc);
             ensure!(end > start, "end must be later than start");
-            let api = google::Google::connect(&config.service_account_key)?;
+            let api = google::Google::connect_config(&config)?;
             print(
                 json!({ "account": account.name,
                 "source_busy": if account.source.is_empty() { None } else { Some(api.availability(&account.source, start, end)?) },
