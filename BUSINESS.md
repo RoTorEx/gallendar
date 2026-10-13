@@ -15,9 +15,11 @@ directory: ~/.x-cli-gallendar/config.toml. The new template contains two routes 
 Existing configs without routes keep the previous all-to-all synchronization;
 they are not switched automatically. OAuth login and read access are verified for all three
 work accounts; eight two-day trial copies were written and read back in the Innowise
-Gallendar secondary calendar. Real scheduling availability remains unverified.
-The destination is the separate Gallendar calendar inside Innowise, resolved by name
-and verified as owned by Innowise. Its effect on real availability still needs checking. The experiment on two personal accounts was removed from the queue.
+Gallendar secondary calendar. The secondary destination failed the real scheduling check: copies exist in Gallendar,
+but their intervals remain free in the Innowise primary and absent from a colleague's
+scheduling view. The user authorized migration to the explicit Innowise primary
+with title exclusions in Dato. Primary live writes and observer acceptance after
+migration remain pending until the user launches the prepared CLI. The experiment on two personal accounts was removed from the queue.
 
 Requirement sources: `calendar_busy_sync_mvp_pack.zip` (three documents),
 `ANNEX_01_Product_Decisions.txt`, and the plan agreed in the current conversation.
@@ -34,7 +36,7 @@ Builds for Intel Mac and Linux are deferred until separately agreed.
 - The service reads sources and manages only the Busy copies it created.
 - A source calendar contains the original events of one account.
 - A copy represents a busy interval with a title according to the route mode.
-- The copies calendar is the selected Innowise secondary destination. Real account
+- The copies calendar is now the explicit Innowise primary destination. Real account
   availability is a separate product check, not a launch prerequisite.
 
 ## Behavior
@@ -109,10 +111,10 @@ architecture is built in advance.
   A colleague's calendar visibility and busy status depend on Google invitation settings
   and their response. An invitation does not prove that their time is blocked.
   Configured account addresses are rejected as guests to prevent invitation feedback loops.
-  The separate Gallendar calendar is the organizer; the authenticated Innowise owner
-  is the creator, not automatically an attendee. The user explicitly declined inviting
-  their own Innowise profile because Google could place an invitation in the primary
-  calendar and defeat independent hiding in Dato. Keep the owner out of the guest list.
+  The configured destination calendar is the organizer. In primary mode this is
+  Innowise itself; the owner does not need a separate self-invitation. The earlier
+  request to keep the primary untouched was superseded by the authorized migration
+  after the secondary failed availability. Source protection remains unchanged.
 - The source title is copied only with explicit mode = "original".
   With masked, only the configured title is copied. Source descriptions, locations, attendees,
   meeting links, and other context are not copied in any mode.
@@ -130,24 +132,34 @@ architecture is built in advance.
   another active event.
 - Correct availability takes priority over visual tidiness.
 
-## Conditional copies calendar design
+## Destination and display
 
-Production acceptance of a separate copies calendar requires verifying that it
-blocks Innowise's real availability. The user selected a separate Gallendar calendar inside Innowise as the destination,
-so copies can be hidden independently in Dato. Global `mirror_calendar_name` resolves
-this exact name in each destination account on every pass. Only a uniquely named,
-owned secondary calendar is accepted; missing or ambiguous names stop the pass,
-with no automatic fallback to the primary calendar. `calendar ensure` is the separate,
-explicit creation operation and never creates events. Named calendars require destination
-OAuth with calendar-list read and calendar-management permissions. Explicit target IDs
-remain supported when the global name is absent.
-Its availability suitability remains unverified; do not claim the Innowise account is
-busy merely because a copy exists in this secondary calendar. Independently hiding copies is a secondary convenience.
+The current work setup uses the explicit Innowise primary Calendar ID with no global
+`mirror_calendar_name`. Google does not automatically aggregate secondary-calendar
+busy intervals when a colleague checks the primary account. On 2026-10-13, direct
+free/busy comparisons and the user's colleague screenshot confirmed this failure.
+The accepted change is primary destination copies with full original titles and
+route prefixes; Dato can exclude these titles while showing source originals.
+Dato's installed 5.8.2 artifact confirms starts-with title matching, but actual
+filtering still requires a user-side check. Other clients need their own display rules.
+
+Each destination can list old secondary IDs in `retired_targets` during migration.
+All reads must succeed before writes; active copies are verified before cleanup.
+Only owned events in the stable namespace are deleted from an owned retired calendar.
+Foreign events and calendar containers remain. Cleanup never creates or updates
+retired events and cannot target sources, configured primaries or active destinations.
+Partial passes are recoverable; cancellation/new invitations replace old guest copies,
+so responses to the old invitations do not transfer. Remove retired IDs only after
+successful cleanup. The primary live run remains the user's manual action.
+
+Named secondary destinations remain available as an optional explicit configuration,
+without primary fallback. They do not fulfill the current account availability goal.
 
 The user explicitly removed the availability-acknowledgement launch requirement.
 `gallendar run` starts applied synchronization without additional flags;
 `run --dry-run` previews. One-shot sync remains read-only unless `--apply` is supplied.
-Account availability is still an unverified product outcome, not an execution gate.
+Primary destination availability after migration still needs a real observer check;
+the secondary design has a confirmed negative result, not an incomplete check.
 Checking real scheduling scenarios remains useful: the presence of a Busy event
 or a successful API request does not prove the account is unavailable. A failing
 availability scenario calls for an explicit destination decision; the CLI never

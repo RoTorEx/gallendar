@@ -62,6 +62,7 @@ pub struct Google {
     base: String,
     tokens: HashMap<String, String>,
     write_targets: HashSet<String>,
+    cleanup_targets: HashSet<String>,
 }
 
 impl Google {
@@ -119,6 +120,7 @@ impl Google {
             base: API_URL.into(),
             tokens: HashMap::new(),
             write_targets: HashSet::new(),
+            cleanup_targets: HashSet::new(),
         })
     }
 
@@ -132,6 +134,7 @@ impl Google {
             base: API_URL.into(),
             tokens: HashMap::new(),
             write_targets: HashSet::new(),
+            cleanup_targets: HashSet::new(),
         };
         for account in &config.accounts {
             if !config
@@ -153,13 +156,22 @@ impl Google {
             };
             api.tokens
                 .insert(format!("account:{}", account.name), token.clone());
+            api.tokens
+                .insert(account.owner_email.clone(), token.clone());
             for calendar in [&account.source, &account.target]
                 .into_iter()
+                .chain(account.retired_targets.iter())
                 .filter(|id| !id.is_empty())
             {
                 api.tokens.insert(calendar.clone(), token.clone());
             }
         }
+        api.cleanup_targets.extend(
+            config
+                .targets()
+                .iter()
+                .flat_map(|a| a.retired_targets.clone()),
+        );
         if config.mirror_calendar_name.is_none() {
             api.write_targets
                 .extend(config.targets().iter().map(|a| a.target.clone()));
@@ -313,6 +325,14 @@ impl Google {
         Ok((id, created))
     }
 
+    fn require_delete_target(&self, calendar: &str) -> Result<()> {
+        ensure!(
+            self.write_targets.contains(calendar) || self.cleanup_targets.contains(calendar),
+            "Calendar is not an authorized destination or retired target"
+        );
+        Ok(())
+    }
+
     fn require_write_target(&self, calendar: &str) -> Result<()> {
         ensure!(
             self.write_targets.contains(calendar),
@@ -348,7 +368,11 @@ impl Google {
                 .path_segments()
                 .is_some_and(|mut segments| segments.any(|segment| segment == "events"))
         {
-            self.require_write_target(calendar)?;
+            if method == Method::DELETE {
+                self.require_delete_target(calendar)?;
+            } else {
+                self.require_write_target(calendar)?;
+            }
         }
         let token = self.tokens.get(calendar).unwrap_or(&self.token);
         ensure!(
@@ -586,7 +610,7 @@ impl CalendarApi for Google {
     }
 
     fn delete(&mut self, calendar: &str, id: &str, namespace: &str) -> Result<()> {
-        self.require_write_target(calendar)?;
+        self.require_delete_target(calendar)?;
         let Some(current) = self.get(calendar, id)? else {
             return Ok(());
         };
@@ -687,6 +711,7 @@ mod tests {
                 base,
                 tokens: HashMap::new(),
                 write_targets: HashSet::from(["target".into(), "clone-calendar".into()]),
+                cleanup_targets: HashSet::new(),
             },
             handle,
             requests,
@@ -1000,5 +1025,49 @@ mod tests {
                 .to_lowercase()
                 .contains("authorization: bearer target-token")
         );
+    }
+    #[test]
+    fn retired_targets_allow_only_owned_deletion_not_create_or_update() {
+        let (config, memory) = crate::demo::fixture();
+        let busy = memory.calendars["source-0"][0]
+            .busy(&config.accounts[0], "Europe/Warsaw", config.all_day_policy)
+            .unwrap()
+            .unwrap();
+        let (mut api, thread, requests) = server(vec![]);
+        thread.join().unwrap();
+        api.cleanup_targets.insert("old-secondary".into());
+        assert!(api.create("old-secondary", &busy, "namespace").is_err());
+        assert!(
+            api.update("old-secondary", "id", &busy, "namespace")
+                .is_err()
+        );
+        assert!(api.require_delete_target("old-secondary").is_ok());
+        assert!(requests.lock().unwrap().is_empty());
+    }
+    #[test]
+    fn cleanup_deletes_owned_copy_with_readback_and_refuses_foreign_event() {
+        let (config, memory) = crate::demo::fixture();
+        let busy = memory.calendars["source-0"][0]
+            .busy(&config.accounts[0], "Europe/Warsaw", config.all_day_policy)
+            .unwrap()
+            .unwrap();
+        let namespace = crate::model::digest(&[&config.namespace]);
+        let saved = busy.payload("old-id", &namespace);
+        let (mut api, worker, requests) =
+            server(vec![(200, saved), (204, json!(null)), (404, json!(null))]);
+        api.cleanup_targets.insert("old-secondary".into());
+        api.delete("old-secondary", "old-id", &namespace).unwrap();
+        worker.join().unwrap();
+        let requests = requests.lock().unwrap();
+        assert_eq!(requests.len(), 3);
+        assert!(
+            requests[1].starts_with("DELETE /calendar/v3/calendars/old-secondary/events/old-id")
+        );
+        assert!(requests[2].starts_with("GET "));
+        let (mut api, worker, requests) = server(vec![(200, json!({"id":"foreign"}))]);
+        api.cleanup_targets.insert("old-secondary".into());
+        assert!(api.delete("old-secondary", "foreign", &namespace).is_err());
+        worker.join().unwrap();
+        assert_eq!(requests.lock().unwrap().len(), 1);
     }
 }

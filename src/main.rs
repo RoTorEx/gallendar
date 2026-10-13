@@ -523,6 +523,8 @@ fn run_cli(cli: &Cli) -> Result<()> {
             ensure!(end > start, "end must be later than start");
             print(
                 json!({ "account": account.name,
+                "primary_calendar_id": account.owner_email,
+                "primary_busy": api.availability(&account.owner_email, start, end)?,
                 "source_busy": if account.source.is_empty() { None } else { Some(api.availability(&account.source, start, end)?) },
                 "clone_busy": if account.target.is_empty() { None } else { Some(api.availability(&account.target, start, end)?) },
                 "account_aggregation_proven": false }),

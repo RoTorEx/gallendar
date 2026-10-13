@@ -892,3 +892,80 @@ fn every_reconciliation_write_targets_only_the_destination_and_preserves_origina
     assert!(!api.0.calendars.contains_key("clone-0"));
     assert!(!api.0.calendars.contains_key("clone-1"));
 }
+
+#[test]
+fn retarget_migration_fills_primary_before_cleanup_and_preserves_foreign_events() {
+    let (mut config, mut api) = mirror_fixture();
+    let window = config.window(Utc::now());
+    let initial = engine::plan(&mut api, &config, &window).unwrap();
+    engine::apply(&mut api, &initial).unwrap();
+    let old = config.accounts[2].target.clone();
+    let originals = api.calendars[&config.accounts[0].source].clone();
+    let foreign = api.calendars[&config.accounts[0].source][0].clone();
+    api.calendars.get_mut(&old).unwrap().push(foreign.clone());
+    config.accounts[2].target = config.accounts[2].owner_email.clone();
+    config.accounts[2].retired_targets = vec![old.clone()];
+    config.validate().unwrap();
+    let primary = config.accounts[2].target.clone();
+    api.calendars.insert(primary.clone(), vec![foreign.clone()]);
+    let migration = engine::plan(&mut api, &config, &window).unwrap();
+    assert_eq!(migration.counts.create, initial.counts.create);
+    assert_eq!(migration.counts.delete, initial.counts.create);
+    let first_delete = migration
+        .actions
+        .iter()
+        .position(|a| matches!(a, engine::Action::Delete { .. }))
+        .unwrap();
+    assert_eq!(first_delete, migration.counts.create);
+    // A verified creation followed by an interrupted pass leaves every old block intact.
+    let mut verified = 0;
+    assert!(
+        engine::apply_with_reporter(&mut api, &migration, |_, stage, _| {
+            if stage == "operation_started" && verified == 1 {
+                anyhow::bail!("Simulated interruption");
+            }
+            if stage == "operation_verified" {
+                verified += 1;
+            }
+            Ok(())
+        })
+        .is_err()
+    );
+    assert_eq!(api.calendars[&old].len(), initial.counts.create + 1);
+    let recovery = engine::plan(&mut api, &config, &window).unwrap();
+    assert_eq!(recovery.counts.unchanged, 1);
+    engine::apply(&mut api, &recovery).unwrap();
+    assert_eq!(api.calendars[&old].len(), 1);
+    assert_eq!(api.calendars[&old][0].id, foreign.id);
+    assert_eq!(api.calendars[&primary].len(), initial.counts.create + 1);
+    assert_eq!(
+        api.calendars[&config.accounts[0].source][0].id,
+        originals[0].id
+    );
+    let repeated = engine::plan(&mut api, &config, &window).unwrap();
+    assert!(repeated.actions.is_empty());
+}
+
+#[test]
+fn failed_retired_calendar_read_prevents_all_mutations() {
+    let (mut config, mut api) = mirror_fixture();
+    config.accounts[2].retired_targets = vec!["old-secondary".into()];
+    api.failing_calendar = Some("old-secondary".into());
+    assert!(engine::plan(&mut api, &config, &config.window(Utc::now())).is_err());
+    assert_eq!(api.writes, 0);
+}
+
+#[test]
+fn migration_rejects_source_primary_active_and_duplicate_cleanup_ids() {
+    let (mut config, _) = mirror_fixture();
+    for ids in [
+        vec![config.accounts[0].source.clone()],
+        vec![config.accounts[2].target.clone()],
+        vec![config.accounts[0].owner_email.clone()],
+        vec!["primary".into()],
+        vec!["old-secondary".into(), "old-secondary".into()],
+    ] {
+        config.accounts[2].retired_targets = ids;
+        assert!(config.validate().is_err());
+    }
+}

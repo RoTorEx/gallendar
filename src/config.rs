@@ -45,6 +45,9 @@ pub struct Account {
     pub source: String,
     #[serde(default)]
     pub target: String,
+    /// Old destination calendars: delete only this namespace after filling the new target.
+    #[serde(default)]
+    pub retired_targets: Vec<String>,
 }
 
 #[derive(Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq)]
@@ -213,6 +216,34 @@ impl Config {
                 account.target.is_empty() || targets.insert(&account.target),
                 "Target calendars must be unique"
             );
+        }
+        let mut retired = HashSet::new();
+        for account in &self.accounts {
+            ensure!(
+                account.retired_targets.is_empty()
+                    || (self.targets().iter().any(|a| a.name == account.name)
+                        && !self.sources().iter().any(|a| a.name == account.name)),
+                "Retired targets belong only to destination-only accounts"
+            );
+            for id in &account.retired_targets {
+                ensure!(
+                    !id.trim().is_empty()
+                        && id != "primary"
+                        && !id.contains("REPLACE")
+                        && !sources.contains(id)
+                        && !targets.contains(id)
+                        && !self
+                            .accounts
+                            .iter()
+                            .any(|a| a.owner_email.eq_ignore_ascii_case(id))
+                        && retired.insert(id),
+                    "Retired targets must be unique secondary IDs, separate from every source, active target and account primary"
+                );
+                ensure!(
+                    self.mirror_calendar_name.is_none(),
+                    "Retired targets require explicit destination IDs"
+                );
+            }
         }
         if let Some(name) = &self.mirror_calendar_name {
             ensure!(

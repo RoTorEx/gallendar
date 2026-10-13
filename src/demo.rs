@@ -71,6 +71,7 @@ pub fn fixture() -> (Config, Memory) {
             owner_email: format!("owner-{i}@example.invalid"),
             source: format!("source-{i}"),
             target: format!("clone-{i}"),
+            retired_targets: Vec::new(),
         })
         .collect();
     let mut memory = Memory::default();

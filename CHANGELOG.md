@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+- Added destination `retired_targets` for recoverable migration from secondary
+  mirrors to an explicit primary calendar. Read all calendars before writing,
+  verify new copies before deleting old managed copies, and preserve foreign events.
+  Retired calendars permit deletion only; source, primary and active IDs are excluded.
+- Fixed availability diagnostics to query the account primary even for destination-only
+  accounts. Documented the failed secondary availability check, primary configuration,
+  invitation replacement and Dato title exclusions for mirrored prefixes.
+
 ## [0.2.0] - 2026-10-13
 
 - Simplified launch to `gallendar run` with writes enabled by default; `--dry-run`

@@ -6,7 +6,8 @@ auth = "service_account"
 service_account_key = "secrets/service-account.json"
 # Keep this stable. Changing it makes existing clones belong to another instance.
 namespace = "gallendar-work"
-# Optional: resolve a separate calendar by its exact name in each destination account.
+# Primary destinations block account availability; use their explicit Calendar IDs.
+# Optional secondary calendar: useful for display separation, not automatic account busy time.
 # Requires destination OAuth; omit target IDs when enabled.
 # mirror_calendar_name = "Gallendar"
 # Check for a newer GitHub Release in the background, once per day on use.
@@ -41,6 +42,8 @@ source = "REPLACE-THIRA-CALENDAR-ID"
 name = "innowise"
 owner_email = "REPLACE-INNOWISE@example.com"
 target = "REPLACE-INNOWISE-CALENDAR-ID"
+# Optional old secondary IDs: remove managed copies after the active target is verified.
+# retired_targets = ["OLD-CALENDAR-ID@group.calendar.google.com"]
 
 [[routes]]
 from = "aveni"

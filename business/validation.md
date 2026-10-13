@@ -5,7 +5,7 @@ Queue: [TASK.md](../TASK.md).
 
 ## Current results
 
-**Live writes verified; account availability not accepted yet.** The check applies to
+**Secondary writes verified; secondary account availability failed. Primary migration pending.** The check applies to
 Aveni → Innowise and Thira → Innowise; personal accounts are not involved.
 
 On 2026-10-13, by 15:49 Warsaw (CEST, UTC+02:00), the authorized two-day live
@@ -78,11 +78,24 @@ No live apply was performed in these release checks: the user retains the manual
 launch. The prepared config uses a rolling five-day window and ten-minute interval.
 All validation processes were stopped; the private runtime journals are retained.
 
-**Acceptance remains incomplete.** A colleague's real Find a time view, booking
-aggregation, invitation acceptance, Dato hiding, live movement/cancellation
-and observed synchronization delay have not been checked. These results establish
-saved copies and repeatability, not the Innowise account's aggregated busy time.
-The requested copies are intentionally retained for the user's live trial.
+On 2026-10-13 the user supplied a colleague's scheduling view that lacked the
+secondary copies. Independent free/busy queries for the Innowise primary and
+Gallendar showed occupied secondary intervals absent from primary busy time.
+The active config was unchanged during this read-only investigation. This is
+NO-GO for secondary copies as automatic account availability.
+
+The user authorized a patch preparing migration into the explicit Innowise primary,
+with Dato title exclusions to avoid visual duplicates. The migration plan reads old
+managed copies, fills and verifies the new destination, then cleans the old secondary;
+foreign events and sources are preserved. The required checks passed with 62 Rust tests, including migration interruption,
+recovery without duplicates, failed retired reads, forbidden cleanup destinations,
+delete-only HTTP authorization and foreign-event preservation. A real API preflight
+reported source read roles and primary destination ownership, followed by a read-only
+plan with 13 creates in the primary and eight managed deletes in the old secondary.
+The home config was prepared with a private backup, rolling five-day horizon,
+ten-minute polling, original titles, project prefixes and the existing route guest.
+No live event writes were performed. Primary live writes, observer busy visibility,
+Dato filtering and new colleague invitation acceptance remain pending.
 
 ## Preparation and sequence
 

@@ -96,8 +96,33 @@ pub fn plan(api: &mut impl CalendarApi, config: &Config, window: &Window) -> Res
         );
         targets.push(snapshot);
     }
+    // Migration reads finish before any write. Only managed events are eligible.
     let mut actions = Vec::new();
     let mut counts = Counts::default();
+    for account in &target_accounts {
+        for calendar in &account.retired_targets {
+            let snapshot = api
+                .clones(calendar, &namespace)
+                .context("Cannot read retired target; no changes applied")?;
+            ensure!(
+                snapshot.access_role == "owner",
+                "Retired target must be owned; no changes applied"
+            );
+            for event in snapshot.events {
+                if event.owned(&namespace) && event.status != "cancelled" {
+                    ensure!(
+                        !event.id.is_empty(),
+                        "Retired target has an incomplete managed event; no changes applied"
+                    );
+                    counts.delete += 1;
+                    actions.push(Action::Delete {
+                        target: calendar.clone(),
+                        id: event.id,
+                    });
+                }
+            }
+        }
+    }
     for (index, account) in target_accounts.iter().enumerate() {
         let mut desired = BTreeMap::new();
         for (source_index, events) in sources.iter().enumerate() {

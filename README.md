@@ -37,54 +37,91 @@ both modes: `prefix = "[Aveni] "` with an original title `Standup` displays
 or removing a prefix updates existing copies without changing their identities
 or the source events; invited colleagues see the same resulting title.
 
-Use a globally named destination calendar to keep copies separate in calendar viewers
-such as Dato:
+Use the Innowise **primary calendar** to block availability when colleagues add the
+Innowise email in Google Calendar's Find a time. A secondary calendar's busy blocks
+are not automatically aggregated into the primary account. This was confirmed by
+separate Google free/busy reads and a colleague's scheduling view.
 
 ```toml
-# Root section, before [oauth], [[accounts]], or [[routes]]:
-mirror_calendar_name = "Gallendar"
-horizon_days = 5 # Current prepared work setup; configurable from 1 to 30.
+# Root section: omit mirror_calendar_name for explicit destinations.
+horizon_days = 5 # Rolling window; configurable from 1 to 30 days.
 poll_seconds = 600 # Every 10 minutes; restart run after changing it.
 
-# In the innowise account, omit target or use target = "".
-# In both routes, use mode = "original" for the complete source title.
+[[accounts]]
+name = "innowise"
+owner_email = "you@your-work-domain.example"
+target = "you@your-work-domain.example" # Explicit primary Calendar ID.
+# Optional migration from an old secondary destination:
+# retired_targets = ["OLD-CALENDAR-ID@group.calendar.google.com"]
 ```
 
-The CLI searches the destination account's calendar list for this exact name,
-including hidden calendars. It requires ownership of a separate calendar and rejects
-multiple matches or a primary-calendar match. The name takes precedence over explicit
-target IDs. Names are resolved on each pass; missing calendars stop doctor and sync
-without creating anything. No fallback writes to the primary calendar occur.
-Without `mirror_calendar_name`, explicit target IDs continue to work.
+Keep the Aveni and Thira accounts as sources only, and both routes into Innowise.
+Use `mode = "original"` with `prefix = "[Aveni] "` or `prefix = "[Thira] "`
+for the full meeting title and a recognizable source label. Configured colleagues
+are invited only to destination copies; no source guests or events are changed.
+The primary destination is the organizer. Configured account addresses remain
+excluded from route attendees to prevent invitation feedback loops.
 
-Named destinations add calendar-list read and calendar-management permissions to the
-destination's OAuth login only. After enabling the setting, run:
+### Migrate an existing secondary destination
+
+Remove the root `mirror_calendar_name`, set the destination `target` to its explicit
+primary Calendar ID, and put the old secondary Calendar ID in that destination's
+`retired_targets`. Keep the namespace stable. Stop a running CLI before editing.
+
+Every pass reads both sources, the active destination and all retired destinations
+before writing. The CLI creates/updates and verifies active copies before deleting
+old copies. Cleanup requires ownership and removes only events in this instance's
+namespace, including expired copies; unrelated events and the calendar itself remain.
+Retired calendars permit deletion only, never creation or updates. Source calendars,
+account primary IDs, active destinations and duplicate cleanup IDs are rejected.
+Interrupted passes reconcile without duplicating verified copies. Old guest invitations
+are cancelled and replacements send new invitations; their old RSVPs do not transfer.
+Keep `retired_targets` while cleanup is pending; remove it after a successful apply
+and a subsequent preview with no pending cleanup. No migration happens during dry-run.
 
 ```bash
-gallendar auth login --account innowise
-gallendar calendar ensure --account innowise
 gallendar doctor
 gallendar sync --dry-run --details
+gallendar run
 ```
 
-`calendar ensure` reuses an existing uniquely named calendar or explicitly creates
-one in Europe/Warsaw and reads its metadata back. It never creates events. Source
-logins and service-account support for explicit target IDs are preserved.
-Start periodic synchronization with `gallendar run`; it writes immediately and
-repeats at `poll_seconds`. Use `gallendar run --dry-run` to preview periodically,
-`gallendar sync --dry-run --details` to preview once, or `gallendar sync --apply`
-to apply once. Availability acknowledgement flags have been removed. Real account
-availability remains a separate observation; starting the CLI does not prove it.
+`run` writes immediately and repeats at `poll_seconds`; Ctrl-C stops it.
+`run --dry-run` previews periodically. One-shot `sync` previews unless `--apply`
+is supplied. No availability acknowledgement flags or additional OAuth logins are
+needed when the destination already has calendar event write permission.
 
-A dry-run
-with `--details` shows mirrored titles, intervals, destination IDs and configured
-invitees. Full source titles are visible to invited colleagues when using original mode.
-Google treats the separate calendar as organizer and the authenticated owner as creator.
-The owner is not automatically a guest. Inviting their own profile could place
-an invitation in their primary calendar, so configured account addresses remain
-excluded from route attendees to preserve calendar separation.
-Separate-calendar visibility in Dato and real account availability are different checks;
-hiding Gallendar in Dato does not prove that scheduling tools block the account.
+`availability --account innowise --start RFC3339 --end RFC3339` now always returns
+`primary_busy` for the owner's explicit primary ID, even when Innowise is only a
+destination. `source_busy` remains the configured source diagnostic, and `clone_busy`
+reports the destination. These API diagnostics do not replace an observer's real
+Find a time check.
+
+### Hide mirrored copies in Dato
+
+Dato 5.8.2's shipped exclusion settings support title equality, contains, starts-with,
+ends-with and regex matching. Matching ignores case and surrounding whitespace.
+Open **Settings → Events → Exclude events** and add these title rules:
+
+- **Starts with**: `[Aveni]`
+- **Starts with**: `[Thira]`
+
+Keep the original Aveni and Thira calendars and the Innowise primary enabled;
+hide the retired Gallendar calendar. Apply exclusions to the event list and any
+notification surfaces offered in the rule editor. Check the result on one actual
+copy and its original before relying on it. The matching options were verified
+from the installed artifact; the rule editor and actual hiding were not exercised
+through automation. Exclusions affect Dato's display, not Google's busy status.
+Other calendar apps need their own display rules; there is no global hide flag.
+
+### Optional named secondary destinations
+
+`mirror_calendar_name = "Gallendar"` remains supported for explicit use cases that
+do not require automatic primary availability. It resolves one uniquely named,
+owned secondary destination; there is no fallback to the primary. Destination OAuth
+needs calendar-list read and calendar-management scopes. `calendar ensure --account
+innowise` explicitly reuses or creates the named calendar in Europe/Warsaw and never
+creates events. Missing or ambiguous calendars stop synchronization. Named mode
+cannot be combined with `retired_targets`.
 
 `from` and `to` refer to a `name` in `[[accounts]]`. Only route sources are
 read; copies are managed only in their destinations. An empty route list,
@@ -253,9 +290,9 @@ attendees = ["colleague@example.com", "another@example.com"]
 
 Keep the separate Thira route; leaving its attendees empty keeps its copies without guests.
 `attendees = []` is the default. Only these configured emails are invited to destination copies;
-original meetings and their guest lists are untouched. Use `mirror_calendar_name` to send both routes into a separate calendar by name,
-or configure its explicit Calendar ID as `target` if using the earlier OAuth scopes.
-A secondary calendar's effect on Innowise availability must be verified before applying the plan.
+original meetings and their guest lists are untouched. Use the explicit Innowise primary Calendar ID as `target` to block account availability;
+secondary destinations are optional and do not automatically block the account.
+The current secondary design failed account availability; use the prepared primary destination.
 The existing Innowise OAuth login already
 has the required event-write scope; no colleague login or key is needed. Destination OAuth is
 required because this service-account mode does not implement domain-wide delegation.
