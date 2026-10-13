@@ -1,14 +1,14 @@
 # gallendar
 
-CLI на Rust для зеркала занятости **Aveni & Thira → Innowise**.
-Оригиналы остаются в двух источниках, в Innowise появляются копии занятости с настроенным названием.
-Переносы и удаления отражаются в копиях; обратных записей нет.
+A Rust CLI that mirrors busy time **Aveni & Thira → Innowise**.
+Originals stay in the two sources; Innowise receives busy copies with a configured title.
+Moves and deletions are reflected in the copies; nothing is written back.
 
-Маршруты задаются в `~/.x-cli-gallendar/config.toml`. Выполнить `gallendar setup`
-для нового шаблона или `gallendar config --edit` для существующего.
-Setup сохраняет существующий конфиг; новый шаблон — [gallendar.example.toml](gallendar.example.toml).
-Aveni и Thira задают `source` и `owner_email`, Innowise — `target` и `owner_email`.
-Точные ID, доступ и тип назначения ещё предстоит настроить и проверить.
+Routes are defined in `~/.x-cli-gallendar/config.toml`. Run `gallendar setup`
+for a new template or `gallendar config --edit` for an existing one.
+Setup preserves an existing config; the new template is [gallendar.example.toml](gallendar.example.toml).
+Aveni and Thira set `source` and `owner_email`; Innowise sets `target` and `owner_email`.
+The exact IDs, access, and destination type still have to be configured and verified.
 
 ```toml
 [[routes]]
@@ -24,23 +24,23 @@ mode = "masked"
 title = "Busy"
 ```
 
-`mode = "masked"` отображает значение `title`, например `Busy`, `Занят` или
-`Aveni — занят`. `mode = "original"` сохраняет название исходной встречи;
-`title` в этом режиме игнорируется. Описание, участники, место и ссылки
-не переносятся. Копии сохраняют Google visibility = private; видимость
-названия зависит от прав наблюдателя. Изменение режима или title обновляет
-существующие копии на следующем проходе. Без mode/title используются masked/Busy.
+`mode = "masked"` displays the `title` value, for example `Busy`, `Занят`, or
+`Aveni — занят`. `mode = "original"` keeps the source meeting's title;
+`title` is ignored in this mode. Description, attendees, location, and links
+are not copied. Copies keep Google visibility = private; whether the title is
+visible depends on the viewer's permissions. Changing the mode or title updates
+existing copies on the next pass. Without mode/title, masked/Busy is used.
 
-`from` и `to` ссылаются на `name` в `[[accounts]]`. Читаются только источники
-маршрутов; копии управляются только в их назначениях. Пустой список маршрутов,
-неизвестные имена, дубли и маршруты в себя отклоняются. Без `routes` старые
-конфиги сохраняют прежнее поведение «все со всеми»; для текущего scope задайте
-оба маршрута явно. Если удалить маршрут, его копии удаляются при следующем
-успешном проходе, пока назначение остаётся в другом маршруте. Если назначение
-полностью исключено, оно больше не читается и старые копии в нём остаются;
-их очистку следует планировать отдельно. Namespace сохраняйте стабильным.
+`from` and `to` refer to a `name` in `[[accounts]]`. Only route sources are
+read; copies are managed only in their destinations. An empty route list,
+unknown names, duplicates, and self-routes are rejected. Without `routes`, old
+configs keep the previous "all to all" behavior; for the current scope, define
+both routes explicitly. If a route is removed, its copies are deleted on the next
+successful pass as long as the destination remains in another route. If a destination
+is excluded entirely, it is no longer read and its old copies remain;
+plan their cleanup separately. Keep the namespace stable.
 
-## Установка из GitHub
+## Install from GitHub
 
 ```bash
 curl -fsSL https://github.com/RoTorEx/gallendar/releases/latest/download/gallendar-install.sh -o /tmp/gallendar-install.sh
@@ -50,9 +50,9 @@ gallendar version
 gallendar update
 ```
 
-Installer сохраняет существующий конфиг и проверяет SHA-256 и версию бинарника.
+The installer preserves an existing config and verifies the binary's SHA-256 and version.
 
-## Быстрый запуск
+## Quick start
 
 ```bash
 make build-local
@@ -64,86 +64,86 @@ gallendar version
 gallendar demo
 ```
 
-`demo` работает без ключей и сети: четыре синтетических источника дают 12 копий,
-повторный проход — ноль изменений, перенос — три обновления, удаление — три
-удаления. Проверяется приватность и остановка до записи при ошибке чтения.
-Это демонстрация движка, а не подтверждение поведения Google.
+`demo` runs without keys or network: four synthetic sources produce 12 copies,
+a repeated pass makes zero changes, a move makes three updates, and a deletion makes three
+deletions. It checks privacy and stopping before any write on a read error.
+This demonstrates the engine; it does not confirm Google behavior.
 
-`make install-local` устанавливает бинарник в `~/.x-cli-gallendar/bin`, сохраняет
-существующий конфиг и добавляет PATH в профиль shell, как соседние CLI.
-Для уже открытого терминала: `export PATH="$HOME/.x-cli-gallendar/bin:$PATH"`.
+`make install-local` installs the binary into `~/.x-cli-gallendar/bin`, preserves
+an existing config, and adds PATH to the shell profile, like the neighbouring CLIs.
+For an already open terminal: `export PATH="$HOME/.x-cli-gallendar/bin:$PATH"`.
 
-## Базовые команды
+## Basic commands
 
-- `setup` (алиасы `init`, `setup-config`) — создаёт шаблон и в интерактивном терминале открывает
-  его в редакторе; `setup --no-edit` подходит для скриптов. Существующий конфиг
-  сохраняется. `EDITOR`/`VISUAL` задаёт путь к исполняемому файлу редактора.
-- `config` — путь к конфигу; `config --edit` открывает его в редакторе.
-- `home` — домашний каталог приложения `~/.x-cli-gallendar`.
-- `version`, `-V`, `--version` — установленная версия; `--help` — справка.
-- `update` — обновление текущего бинарника из последнего публичного
-  [GitHub Release](https://github.com/RoTorEx/gallendar/releases) с проверкой
-  SHA-256 и версии, атомарной заменой и запретом понижения версии.
-  Конфиг и ключи сохраняются. `--repo OWNER/REPO` и `GALLENDAR_RELEASE_REPO`
-  позволяют явно выбрать другой репозиторий.
+- `setup` (aliases `init`, `setup-config`) — creates the template and, in an interactive terminal, opens
+  it in an editor; `setup --no-edit` suits scripts. An existing config
+  is preserved. `EDITOR`/`VISUAL` sets the path to the editor executable.
+- `config` — config path; `config --edit` opens it in an editor.
+- `home` — the application home directory `~/.x-cli-gallendar`.
+- `version`, `-V`, `--version` — installed version; `--help` — help.
+- `update` — updates the current binary from the latest public
+  [GitHub Release](https://github.com/RoTorEx/gallendar/releases) with
+  SHA-256 and version verification, atomic replacement, and no downgrades.
+  Config and keys are preserved. `--repo OWNER/REPO` and `GALLENDAR_RELEASE_REPO`
+  explicitly select another repository.
 
-Автообновление включено через `auto_update = true` в корне TOML (значение
-по умолчанию для старых конфигов тоже true). При запуске doctor, sync, run
-или availability с валидным конфигом установленный CLI запускает фоновую
-проверку не чаще раза в 24 часа через публичную страницу последнего релиза,
-без GitHub API-токена. Проверяется номер релиза; архив скачивается
-только при новой версии. Ошибки не мешают основной команде и сохраняются в
-`~/.x-cli-gallendar/update.log`; попытка учитывается и при ошибке, чтобы
-не повторять сетевой запрос на каждом запуске. `auto_update = false` отключает
-это поведение. Справка, version/home/config/setup и offline demo не обращаются
-к сети. Локальные бинарники разработки не обновляются автоматически.
-Новая версия используется со следующего запуска; уже работающий run продолжает
-текущую версию. Автообновление не создаёт системный сервис или расписание.
+Automatic updates are enabled via `auto_update = true` at the TOML root (the
+default for old configs is also true). When doctor, sync, run,
+or availability starts with a valid config, the installed CLI launches a background
+check at most once per 24 hours through the public latest-release page,
+without a GitHub API token. The release number is checked; the archive is downloaded
+only for a new version. Errors do not interfere with the main command and are saved to
+`~/.x-cli-gallendar/update.log`; an attempt counts even on error, so the
+network request is not repeated on every start. `auto_update = false` disables
+this behavior. Help, version/home/config/setup, and the offline demo do not access
+the network. Local development binaries are not updated automatically.
+A new version is used from the next start; an already running run continues with
+the current version. Automatic updates do not create a system service or schedule.
 
 
-Базовый интерфейс и доставка согласованы с соседями `linkdeck`, `hop`, `shelve`.
+The basic interface and delivery are aligned with the neighbours `linkdeck`, `hop`, `shelve`.
 
-## Авторизация: сервисный ключ или OAuth
+## Authorization: service key or OAuth
 
-Оба способа поддерживаются. Старый конфиг без `auth` использует сервисный ключ;
-существующий `service_account_key` сохраняется. В корне TOML выберите:
+Both methods are supported. An old config without `auth` uses the service key;
+an existing `service_account_key` is preserved. At the TOML root, choose:
 
 ```toml
 auth = "service_account"
 service_account_key = "secrets/service-account.json"
 ```
 
-Этот режим требует sharing источников с чтением деталей и назначения с записью.
-В проверенных настройках Aveni и Innowise внешний sharing ограничен free/busy:
-сервисный ключ в таком случае не подходит для текущего чтения событий и записи
-копий. Ключ успешно проверен, но доступ к календарям не подтверждён.
+This mode requires sharing sources with event-detail read access and the destination with write access.
+In the checked Aveni and Innowise settings, external sharing is limited to free/busy;
+in that case the service key does not suit the current reading of events and writing
+of copies. The key was verified successfully, but calendar access is not confirmed.
 
-Для пользовательского OAuth создайте в том же Cloud-проекте Google Auth platform:
+For user OAuth, create in the same Cloud project, in Google Auth platform:
 [Branding](https://console.cloud.google.com/auth/branding) → Get started,
-аудитория External; [Audience](https://console.cloud.google.com/auth/audience) →
-Test users для первого входа или In production для регулярной эксплуатации.
-В [Clients](https://console.cloud.google.com/auth/clients) выберите Create client →
-Desktop app и скачайте JSON. Это другой файл, чем ключ service account.
-Храните его в `~/.x-cli-gallendar/secrets/oauth-client.json` с правами 0600.
-Доступ к API может потребовать одобрения администратора рабочей организации.
+audience External; [Audience](https://console.cloud.google.com/auth/audience) →
+Test users for the first login or In production for regular operation.
+In [Clients](https://console.cloud.google.com/auth/clients), choose Create client →
+Desktop app and download the JSON. This is a different file from the service account key.
+Store it in `~/.x-cli-gallendar/secrets/oauth-client.json` with permissions 0600.
+API access may require approval from the work organization's administrator.
 
-В существующем конфиге измените корневой `auth` и добавьте `[oauth]` перед
-первым `[[accounts]]`. Остальные корневые параметры должны оставаться выше `[oauth]`:
+In an existing config, change the root `auth` and add `[oauth]` before
+the first `[[accounts]]`. Other root parameters must stay above `[oauth]`:
 
 ```toml
 auth = "oauth"
-# Остальные корневые параметры, включая service_account_key, namespace и horizon_days.
+# Other root parameters, including service_account_key, namespace, and horizon_days.
 
 [oauth]
 client = "secrets/oauth-client.json"
 tokens_dir = "secrets/oauth"
 
-# Далее существующие [[accounts]] и [[routes]].
+# Followed by the existing [[accounts]] and [[routes]].
 ```
 
-Относительные пути считаются от каталога config.toml. Заполните реальные
-`owner_email` для трёх аккаунтов и сохраните явные маршруты. Вход возможен до
-заполнения Calendar ID; doctor/sync/run требуют валидных ID.
+Relative paths are resolved from the config.toml directory. Fill in the real
+`owner_email` for the three accounts and keep the explicit routes. Login is possible before
+the Calendar IDs are filled in; doctor/sync/run require valid IDs.
 
 ```bash
 gallendar auth login --account aveni
@@ -154,55 +154,55 @@ gallendar doctor
 gallendar sync --dry-run
 ```
 
-В каждом открывшемся браузере выбирайте соответствующий рабочий аккаунт.
-CLI проверяет email и полученные права перед сохранением. Источники запрашивают
-чтение событий, назначения — изменение событий; дополнительно нужны free/busy
-и проверка email. OAuth использует PKCE, state и локальный callback на 127.0.0.1.
-`--no-browser` печатает ссылку без открытия браузера; её нужно открыть на том же
-компьютере. Ожидание входа ограничено 180 секундами. Отмена, неправильный аккаунт
-или недостаточные права сохраняют прежние локальные токены.
+In each browser window that opens, choose the corresponding work account.
+The CLI checks the email and granted scopes before saving. Sources request
+event read access, destinations request event write access; free/busy
+and email verification are also required. OAuth uses PKCE, state, and a local callback on 127.0.0.1.
+`--no-browser` prints the link without opening a browser; it must be opened on the same
+computer. Waiting for login is limited to 180 seconds. Cancellation, a wrong account,
+or insufficient scopes keep the previous local tokens.
 
-Для смешанного доступа задайте `auth = "oauth"` или `auth = "service_account"`
-внутри нужного `[[accounts]]`: это переопределяет корневой режим только для него.
-`auth status` проверяет наличие и соответствие локальных credentials; это не
-проверка действительности Google-доступа. Секреты он не выводит и к сети не обращается.
+For mixed access, set `auth = "oauth"` or `auth = "service_account"`
+inside the relevant `[[accounts]]`: this overrides the root mode for that account only.
+`auth status` checks the presence and consistency of local credentials; it does not
+verify that Google access is valid. It prints no secrets and does not access the network.
 
-Каждый аккаунт хранится в отдельном файле `tokens_dir/<name>.json` (0600),
-каталог — 0700. Refresh token используется для получения нового access token на
-каждом проходе; браузер повторно не открывается. Вход в другой аккаунт сохраняет
-остальные токены. В режиме Testing Google ограничивает Calendar refresh token
-семью днями; In production убирает этот срок, но отзыв доступа и корпоративные
-ограничения могут потребовать повторного входа.
-[Правила срока действия Google](https://developers.google.com/identity/protocols/oauth2#expiration).
+Each account is stored in a separate file `tokens_dir/<name>.json` (0600),
+the directory is 0700. The refresh token is used to obtain a new access token on
+each pass; the browser is not opened again. Logging in to another account keeps
+the other tokens. In Testing mode, Google limits the Calendar refresh token
+to seven days; In production removes this limit, but access revocation and corporate
+restrictions may require logging in again.
+[Google expiration rules](https://developers.google.com/identity/protocols/oauth2#expiration).
 
-Для переноса на сервер выполните вход на Mac и передайте по SSH OAuth client,
-каталог токенов и TOML, сохранив права и относительные пути. Не запускайте два
-писателя одного namespace одновременно. Готовые серверные сборки пока отложены;
-текущая платформа доставки — Apple Silicon. Автозапуска нет: run работает, пока
-жив процесс. После проверки реальной доступности назначения:
+To move to a server, log in on the Mac and transfer the OAuth client,
+the token directory, and the TOML over SSH, keeping permissions and relative paths. Do not run two
+writers of the same namespace at the same time. Prebuilt server builds are deferred for now;
+the current delivery platform is Apple Silicon. There is no autostart: run works while
+the process is alive. After verifying the destination's real availability:
 
 ```bash
 gallendar run --apply --availability-confirmed
 ```
 
-Добавление участников не входит в эту реализацию: оба режима по-прежнему создают
-приватные Busy-копии без гостей и без Google Meet ссылок.
+Adding attendees is not part of this implementation: both modes still create
+private Busy copies without guests and without Google Meet links.
 
-## Справочная инструкция Google для прежнего эксперимента
+## Reference Google guide for the earlier experiment
 
-Эта инструкция сохранена для справки о настройке Google Cloud и sharing.
-Её двусторонний TOML и личный эксперимент относятся к прежнему scope.
-Для текущего сценария используйте новый шаблон выше: чтение Aveni/Thira,
-запись только Innowise и проверку [business/validation.md](business/validation.md).
+This guide is kept for reference on Google Cloud and sharing setup.
+Its two-way TOML and personal experiment belong to the earlier scope.
+For the current scenario, use the new template above: read Aveni/Thira,
+write only Innowise, and verify with [business/validation.md](business/validation.md).
 
-Начинаем с двух личных Google аккаунтов A и B. Если второго личного аккаунта
-пока нет, он понадобится для проверки доступности со стороны другого пользователя.
-Рабочие аккаунты добавляются после первого эксперимента. Внешний доступ пока
-не настроен; команды ниже выполняются владельцем в своих аккаунтах.
+We start with two personal Google accounts A and B. If there is no second personal account
+yet, it will be needed to check availability from another user's side.
+Work accounts are added after the first experiment. External access is not
+configured yet; the commands below are run by the owner in their own accounts.
 
-### 1. Проверить локальный бинарник
+### 1. Check the local binary
 
-В каталоге проекта:
+In the project directory:
 
 ```bash
 make build-local
@@ -210,8 +210,8 @@ make build-local
 ./gallendar demo
 ```
 
-Это оптимизированная сборка для текущего Mac, без релизного коммита, тега или
-публикации. Файл `./gallendar` не включается в Git. Для установки в PATH:
+This is an optimized build for the current Mac, without a release commit, tag, or
+publication. The `./gallendar` file is not included in Git. To install into PATH:
 
 ```bash
 make install-local
@@ -219,89 +219,89 @@ export PATH="$HOME/.x-cli-gallendar/bin:$PATH"
 gallendar --version
 ```
 
-После изменения исходников `make build-local` обновляет `./gallendar`, а
-`make install-local` — установленную копию. Далее команды используют `gallendar`;
-вместо него можно писать `./gallendar` из проекта. Конфиг у обеих копий общий.
+After source changes, `make build-local` updates `./gallendar`, and
+`make install-local` updates the installed copy. The commands below use `gallendar`;
+`./gallendar` from the project can be used instead. Both copies share the config.
 
-### 2. Создать Google Cloud проект и включить API
+### 2. Create a Google Cloud project and enable the API
 
-Открыть [Google Cloud Console](https://console.cloud.google.com/) под личным
-аккаунтом A. В переключателе проектов выбрать New project, задать имя, например
-`gallendar-personal`, создать проект и убедиться, что он выбран.
+Open the [Google Cloud Console](https://console.cloud.google.com/) as personal
+account A. In the project picker, choose New project, set a name, for example
+`gallendar-personal`, create the project, and make sure it is selected.
 
-В APIs & Services → Library найти **Google Calendar API** и нажать Enable.
-[Страница API](https://console.cloud.google.com/apis/library/calendar-json.googleapis.com).
-Сам CLI работает локально; создавать VM или Cloud Run для этого шага не нужно.
-[Документация включения API](https://developers.google.com/workspace/calendar/api/quickstart/python#enable_the_api).
+In APIs & Services → Library, find **Google Calendar API** and click Enable.
+[API page](https://console.cloud.google.com/apis/library/calendar-json.googleapis.com).
+The CLI itself runs locally; there is no need to create a VM or Cloud Run for this step.
+[API enablement documentation](https://developers.google.com/workspace/calendar/api/quickstart/python#enable_the_api).
 
-### 3. Создать сервисную учётную запись и скачать JSON
+### 3. Create a service account and download the JSON
 
-Открыть IAM & Admin → Service Accounts → Create service account.
-Задать имя, например `gallendar-sync`, и завершить создание. Дополнительные
-роли доступа к Cloud-проекту на этом этапе оставить пустыми: доступ к событиям
-выдаётся в Google Calendar. Скопировать email новой учётной записи вида
+Open IAM & Admin → Service Accounts → Create service account.
+Set a name, for example `gallendar-sync`, and finish creation. Leave additional
+Cloud project access roles empty at this stage: event access
+is granted in Google Calendar. Copy the new account's email, of the form
 `gallendar-sync@PROJECT_ID.iam.gserviceaccount.com`.
-[Создание service account](https://docs.cloud.google.com/iam/docs/service-accounts-create).
+[Creating a service account](https://docs.cloud.google.com/iam/docs/service-accounts-create).
 
-Открыть эту учётную запись → Keys → Add key → Create new key → JSON → Create.
-Браузер скачает JSON-файл. Он содержит приватный ключ: оставить его локально,
-не отправлять в чат и не включать в Git.
-[Создание JSON-ключа](https://docs.cloud.google.com/iam/docs/keys-create-delete).
+Open this account → Keys → Add key → Create new key → JSON → Create.
+The browser downloads a JSON file. It contains a private key: keep it local,
+do not send it in chat, and do not include it in Git.
+[Creating a JSON key](https://docs.cloud.google.com/iam/docs/keys-create-delete).
 
-Если создание service account или ключа запрещено политикой организации,
-сохранить текст ошибки и остановить этот шаг. Это конкретный блокер;
-не менять корпоративные ограничения ради продолжения инструкции.
+If creating a service account or key is forbidden by organization policy,
+save the error text and stop this step. This is a concrete blocker;
+do not change corporate restrictions just to continue the guide.
 
-### 4. Положить ключ в каталог приложения
+### 4. Put the key in the application directory
 
-В терминале, заменив имя файла на фактически скачанное:
+In the terminal, replacing the file name with the one actually downloaded:
 
 ```bash
 mkdir -p "$HOME/.x-cli-gallendar/secrets"
 chmod 700 "$HOME/.x-cli-gallendar/secrets"
-mv -n "$HOME/Downloads/ИМЯ_СКАЧАННОГО_КЛЮЧА.json" \
+mv -n "$HOME/Downloads/DOWNLOADED_KEY_NAME.json" \
   "$HOME/.x-cli-gallendar/secrets/service-account.json"
 chmod 600 "$HOME/.x-cli-gallendar/secrets/service-account.json"
 ```
 
-`mv -n` сохраняет уже существующий ключ. Если он есть, убедиться, что выбран
-нужный service account, прежде чем использовать другой ключ. Путь в конфиге
-можно указать абсолютный; символ `~` в TOML не раскрывается. Путь
-`secrets/service-account.json` считается от каталога `config.toml`.
+`mv -n` keeps an already existing key. If one exists, make sure the correct
+service account is selected before using another key. The config path
+may be absolute; `~` is not expanded in TOML. The path
+`secrets/service-account.json` is resolved from the `config.toml` directory.
 
-### 5. Подготовить календари в обоих аккаунтах
+### 5. Prepare calendars in both accounts
 
-Открыть [Google Calendar](https://calendar.google.com/) в браузере отдельно
-под A и B. В каждом аккаунте слева у Other calendars нажать `+` → Create new
-calendar. Назвать календарь, например `gallendar Busy — A` / `gallendar Busy — B`.
-Создавать его нужно от лица владельца аккаунта, чтобы календарь принадлежал ему.
-[Создание календаря](https://support.google.com/calendar/answer/37095).
+Open [Google Calendar](https://calendar.google.com/) in the browser separately
+as A and B. In each account, on the left next to Other calendars, click `+` → Create new
+calendar. Name the calendar, for example `gallendar Busy — A` / `gallendar Busy — B`.
+Create it as the account owner so that the calendar belongs to them.
+[Creating a calendar](https://support.google.com/calendar/answer/37095).
 
-Затем в каждом аккаунте открыть Settings and sharing нужного календаря →
+Then, in each account, open Settings and sharing of the relevant calendar →
 Shared with / Share with specific people or groups → Add people and groups.
-Добавить **email service account** из шага 3 и выдать:
+Add the **service account email** from step 3 and grant:
 
-| Календарь | Разрешение сервисному аккаунту |
+| Calendar | Permission for the service account |
 |---|---|
-| Основной календарь с оригиналами | See all event details — чтение событий |
-| Новый календарь копий | Make changes to events — изменение событий |
+| Primary calendar with originals | See all event details — read events |
+| New copies calendar | Make changes to events — change events |
 
-Повторить для A и B. Service account не требует ручного входа в Gmail;
-в CLI используется скачанный ключ. Проверка фактического доступа — шаг 7.
-[Разрешения sharing](https://support.google.com/calendar/answer/37082?hl=en).
+Repeat for A and B. The service account does not require a manual Gmail login;
+the CLI uses the downloaded key. Actual access is verified in step 7.
+[Sharing permissions](https://support.google.com/calendar/answer/37082?hl=en).
 
-В настройках каждого из четырёх календарей открыть **Integrate calendar →
-Calendar ID** и скопировать ID. Основной ID часто равен email владельца;
-ID вторичного календаря обычно заканчивается на `@group.calendar.google.com`.
-Использовать именно поле Calendar ID, а не iCal URL или ссылку для браузера.
-[Где найти Calendar ID](https://support.google.com/calendar/answer/44105?hl=en-GB).
+In the settings of each of the four calendars, open **Integrate calendar →
+Calendar ID** and copy the ID. The primary ID often equals the owner's email;
+a secondary calendar ID usually ends with `@group.calendar.google.com`.
+Use exactly the Calendar ID field, not the iCal URL or the browser link.
+[Where to find the Calendar ID](https://support.google.com/calendar/answer/44105?hl=en-GB).
 
-Для эксперимента дополнительно поделиться основным календарём A с аккаунтом B,
-а основным B — с A с разрешением **See only free/busy**. Это права наблюдателей,
-отдельные от прав service account. Они нужны для сравнения доступности гостей.
-[Проверка доступности другого пользователя](https://support.google.com/calendar/answer/6294878).
+For the experiment, additionally share A's primary calendar with account B,
+and B's primary with A, with the **See only free/busy** permission. These are viewer permissions,
+separate from the service account's permissions. They are needed to compare guest availability.
+[Checking another user's availability](https://support.google.com/calendar/answer/6294878).
 
-### 6. Заполнить локальный конфиг
+### 6. Fill in the local config
 
 ```bash
 gallendar setup --no-edit
@@ -309,8 +309,8 @@ gallendar config
 nano "$HOME/.x-cli-gallendar/config.toml"
 ```
 
-Если конфиг уже существует, setup его сохраняет. Заполнить его по образцу,
-заменив все значения с `REPLACE` на реальные email и Calendar ID:
+If the config already exists, setup preserves it. Fill it in following the sample,
+replacing all `REPLACE` values with real emails and Calendar IDs:
 
 ```toml
 service_account_key = "secrets/service-account.json"
@@ -332,210 +332,210 @@ source = "REPLACE-B@gmail.com"
 target = "REPLACE-B@group.calendar.google.com"
 ```
 
-owner_email — email человека, а не сервисного аккаунта. source — календарь
-оригиналов этого человека; target — его отдельный календарь копий. Не подставлять
-`primary`: для service account он обозначает другой календарь.
+owner_email is the person's email, not the service account's. source is that person's
+originals calendar; target is their separate copies calendar. Do not use
+`primary`: for a service account it refers to a different calendar.
 
-Для первого теста подходят обычные события с началом и концом по часам.
-`out_of_office_only` пропускает обычные события на весь день и оставляет all-day
-только типа Out of Office. Если нужно переносить обычные Busy all-day,
-оператор явно выбирает `busy`; типы birthday и workingLocation всё равно
-исключаются. Значения 30 дней и 60 секунд — редактируемые параметры примера.
-Namespace после начала синхронизации сохранять стабильным.
+Ordinary events with timed start and end suit the first test.
+`out_of_office_only` skips ordinary all-day events and keeps all-day events
+only of the Out of Office type. If ordinary Busy all-day events need to be copied, the
+operator explicitly chooses `busy`; the birthday and workingLocation types are still
+excluded. The values 30 days and 60 seconds are editable example parameters.
+Keep the namespace stable after synchronization starts.
 
-По умолчанию конфиг находится в `~/.x-cli-gallendar/config.toml`.
-`GALLENDAR_CONFIG` задаёт другой путь, а `--config PATH` имеет приоритет над ним.
+By default, the config is at `~/.x-cli-gallendar/config.toml`.
+`GALLENDAR_CONFIG` sets another path, and `--config PATH` takes precedence over it.
 
-### 7. Проверить интеграцию без записи
+### 7. Check the integration without writing
 
 ```bash
 gallendar doctor
 gallendar sync --dry-run
 ```
 
-Ожидается `ready: true`, source_readable и target_writable для обоих аккаунтов.
-Для источника допустим reader, для назначения — writer или owner
-(поддерживается также writerWithoutPrivateAccess). doctor проверяет роли,
-но пока не создаёт событий и не доказывает доступность аккаунта.
+Expected: `ready: true`, source_readable and target_writable for both accounts.
+A source may have reader; a destination needs writer or owner
+(writerWithoutPrivateAccess is also supported). doctor checks roles,
+but does not create events yet and does not prove account availability.
 
-Dry-run показывает create/update/delete/unchanged. Это события обоих источников
-на весь выбранный горизонт, поэтому create может быть больше одного.
-До записи проверить, что настроены правильные исходные календари и назначения.
-Содержание оригиналов в вывод не попадает.
+Dry-run shows create/update/delete/unchanged. These are events from both sources
+over the whole selected horizon, so create may be more than one.
+Before writing, check that the correct source calendars and destinations are configured.
+Original content does not appear in the output.
 
-Типичные причины ошибок:
+Typical causes of errors:
 
-| Результат | Что проверить |
+| Result | What to check |
 |---|---|
-| Ошибка конфига / placeholders | Заполнены ли все REPLACE, email, явные Calendar ID и обязательные поля |
-| Cannot read service-account key | Файл существует, путь считается от конфига, TOML не использует `~` |
-| Invalid service-account JSON | Скачан JSON именно сервисного аккаунта |
-| Ошибка авторизации | Ключ действующий, service account включён, системные часы корректны |
-| HTTP 403 при чтении событий | Calendar API включён в проекте ключа; source/target выданы правильные права |
-| HTTP 404 | Calendar ID правильный; календарь расшарен нужному service account |
-| ready: false | Источник имеет чтение событий, а target — изменение событий |
-| Another gallendar process | Остановить run для этого конфига перед отдельным sync |
+| Config error / placeholders | All REPLACE values, emails, explicit Calendar IDs, and required fields are filled in |
+| Cannot read service-account key | The file exists, the path is resolved from the config, TOML does not use `~` |
+| Invalid service-account JSON | The downloaded JSON is the service account's |
+| Authorization error | The key is valid, the service account is enabled, the system clock is correct |
+| HTTP 403 when reading events | Calendar API is enabled in the key's project; source/target have the correct permissions |
+| HTTP 404 | The Calendar ID is correct; the calendar is shared with the right service account |
+| ready: false | The source has event read access and the target has event change access |
+| Another gallendar process | Stop run for this config before a separate sync |
 
-При неизвестной ошибке сохранить вывод команды без содержания JSON-ключа;
-готовность интеграции не выводить только из настроек UI.
+For an unknown error, save the command output without the JSON key content;
+do not infer integration readiness from UI settings alone.
 
-### 8. Проверить гипотезу о доступности
+### 8. Check the availability hypothesis
 
-Выбрать свободный будущий интервал в пределах горизонта. Создать черновик
-события в A, добавить B как гостя и открыть Find a time; приглашение не отправлять.
-Проверять именно строку B, а не общую сетку календарей.
+Choose a free future interval within the horizon. Create a draft
+event in A, add B as a guest, and open Find a time; do not send the invitation.
+Check B's row specifically, not the combined calendar grid.
 
-Сначала создать временный Busy в основном календаре B: A должен увидеть B
-занятым. Удалить контрольное событие и убедиться, что B снова свободен.
-Затем создать такой же временный `Busy` только в календаре копий B и повторить
-наблюдение из A. Проверить скрытие календаря копий, перенос и удаление блока;
-повторить в обратном направлении. Используемые страницы бронирования проверяются
-отдельно. Полный протокол: [business/validation.md](business/validation.md).
+First create a temporary Busy in B's primary calendar: A should see B
+as busy. Delete the control event and make sure B is free again.
+Then create the same temporary `Busy` only in B's copies calendar and repeat
+the observation from A. Check hiding the copies calendar, moving, and deleting the block;
+repeat in the opposite direction. Booking pages in use are checked
+separately. Full protocol: [business/validation.md](business/validation.md).
 
-Если B остаётся свободным, это NO-GO вторичных календарей: авторизация может
-работать, но основной продуктовый результат не достигнут. Не подтверждать
-availability-confirmed; сначала пересмотреть назначение Busy-копий.
+If B stays free, this is a NO-GO for secondary calendars: authorization may
+work, but the main product result is not achieved. Do not confirm
+availability-confirmed; first reconsider the destination of the Busy copies.
 
-Перед синхронизацией убрать ручные тестовые блоки. CLI не управляет вручную
-созданными событиями без его приватных меток. Успех этой проверки на личных
-аккаунтах не заменяет проверку рабочих аккаунтов.
+Remove the manual test blocks before synchronization. The CLI does not manage manually
+created events without its private markers. Success of this check on personal
+accounts does not replace checking the work accounts.
 
-### 9. Проверить запись и включить периодическую работу
+### 9. Check writing and enable periodic operation
 
-Только после GO создать обычное Busy-событие в источнике A, без гостей,
-на свободный будущий интервал. Посмотреть dry-run и затем применить:
+Only after GO, create an ordinary Busy event in source A, without guests,
+in a free future interval. Review the dry-run and then apply:
 
 ```bash
 gallendar sync --dry-run
 gallendar sync --apply --availability-confirmed
 ```
 
-В календаре копий B должен появиться `Busy`; источник сохраняет оригинал.
-CLI подтверждает read-back; дополнительно посмотреть событие в Google Calendar
-и доступность B из другого аккаунта. Повторный sync не создаёт дубликата.
-Перенести оригинал, повторить sync и проверить перенос копии; удалить оригинал,
-повторить sync и проверить исчезновение его копии. Повторить B → A.
+`Busy` should appear in B's copies calendar; the source keeps the original.
+The CLI confirms read-back; additionally look at the event in Google Calendar
+and at B's availability from the other account. A repeated sync does not create a duplicate.
+Move the original, repeat sync, and check that the copy moved; delete the original,
+repeat sync, and check that its copy disappeared. Repeat B → A.
 
-После этого запустить в терминале:
+After that, run in the terminal:
 
 ```bash
 gallendar run --apply --availability-confirmed
 ```
 
-Процесс работает, пока открыт и запущен; Ctrl-C останавливает его. Для фоновой
-работы после закрытия терминала понадобится отдельная настройка запуска на Mac
-или VPS — локальный foreground run сам этого не обеспечивает.
+The process works while it is open and running; Ctrl-C stops it. For background
+operation after closing the terminal, a separate launch setup on the Mac
+or a VPS will be needed — a local foreground run does not provide this by itself.
 
-Диагностическая команда availability требует --account NAME и --start/--end
-в RFC3339 с явным UTC offset. Для пользовательских времён использовать
-Europe/Warsaw и смещение для выбранной даты. Она отдельно показывает busy
-источника и копий, не доказывая суммарную доступность аккаунта.
+The availability diagnostic command requires --account NAME and --start/--end
+in RFC3339 with an explicit UTC offset. For user times, use
+Europe/Warsaw and the offset for the selected date. It shows source busy time
+and copies busy time separately, without proving the combined account availability.
 
-`--json` даёт машинный JSON для диагностики и путей/версии; run выдаёт по одному
-JSON на строку. update и открытие редактора не поддерживают этот флаг.
+`--json` gives machine-readable JSON for diagnostics and paths/version; run emits one
+JSON object per line. update and opening the editor do not support this flag.
 
-## Синхронизация и проверка гипотезы
+## Synchronization and hypothesis check
 
-Ручной эксперимент: [business/validation.md](business/validation.md).
-Текущие проверки и неоднозначности: [TASK.md](TASK.md).
-После внешней проверки доступности доступны команды записи:
+Manual experiment: [business/validation.md](business/validation.md).
+Current checks and ambiguities: [TASK.md](TASK.md).
+After the external availability check, the write commands are available:
 
 ```bash
 gallendar sync --apply --availability-confirmed
 gallendar run --apply --availability-confirmed
 ```
 
-Флаг подтверждает выполненную оператором проверку; CLI не может доказать
-поведение «Найти время» за коллегу. Без `--apply` оба режима только читают и
-показывают количества изменений. `run` запускает проходы с заданным интервалом,
-ошибки пишет в stderr и повторяет следующий проход; Ctrl-C завершает процесс.
-Ключ авторизации обновляется в начале каждого прохода.
+The flag confirms the check performed by the operator; the CLI cannot prove
+"Find a time" behavior on behalf of a colleague. Without `--apply`, both modes only read and
+show change counts. `run` starts passes at the configured interval,
+writes errors to stderr, and retries on the next pass; Ctrl-C ends the process.
+The authorization key is refreshed at the start of each pass.
 
-`availability --account NAME --start RFC3339 --end RFC3339` отдельно показывает
-занятость источника и календаря копий. Часы требуют явного смещения UTC;
-суммарная доступность аккаунта этим запросом не подтверждается.
+`availability --account NAME --start RFC3339 --end RFC3339` shows the busy time
+of the source and of the copies calendar separately. Times require an explicit UTC offset;
+this request does not confirm the combined account availability.
 
-Движок раскрывает повторения через Google API, учитывает переносы и отмены
-вхождений, не копирует Free, отклонённые владельцем приглашения, birthday и
-workingLocation. Tentative события и ответ владельца «возможно» допускаются,
-если событие не Free. Для all-day требуется явная политика:
-`out_of_office_only` или `busy` (второй вариант включает обычные Busy all-day).
-All-day копии представлены временным интервалом от полуночи до полуночи в зоне
-источника, чтобы разные зоны календарей назначения не сдвигали занятость.
+The engine expands recurrences through the Google API, accounts for moved and cancelled
+occurrences, and does not copy Free events, invitations declined by the owner, birthday, or
+workingLocation. Tentative events and the owner's "maybe" response are allowed
+if the event is not Free. All-day events require an explicit policy:
+`out_of_office_only` or `busy` (the second option includes ordinary Busy all-day events).
+All-day copies are represented as a timed interval from midnight to midnight in the
+source's time zone, so that different destination calendar time zones do not shift busy time.
 
-Состояние соответствий хранится в приватных метках Google-копий с хешами,
-без исходных ID и содержания; название копии задаётся маршрутом. Повторный проход обнаруживает ранее сохранённые
-копии после потери ответа или перезапуска. Управляются только копии своего
-namespace; исходные и посторонние события не изменяются.
+Mapping state is stored in private markers on the Google copies with hashes,
+without source IDs or content; the copy title is set by the route. A repeated pass finds previously saved
+copies after a lost response or a restart. Only copies of its own
+namespace are managed; source and unrelated events are not changed.
 
-Все источники и назначения читаются со всеми страницами до записи. Ошибка
-чтения отменяет весь план. После каждой записи результат читается обратно;
-при ошибке проход останавливается, уже сохранённые изменения остаются, следующий
-проход восстанавливает соответствия. Новая занятость создаётся до удаления
-устаревших копий. Запускайте один экземпляр на одном хосте с одним конфигом:
-блокировка файла предотвращает параллельные запуски этого конфига; распределённой
-блокировки между VPS нет.
+All sources and destinations are read with all pages before writing. A read
+error cancels the whole plan. After each write, the result is read back;
+on error, the pass stops, already saved changes remain, and the next
+pass restores the mappings. New busy time is created before stale
+copies are deleted. Run one instance on one host with one config:
+a file lock prevents parallel runs of this config; there is no distributed
+lock between VPSs.
 
-Защищается окно от текущего момента на `horizon_days` вперёд. Копии вне него
-удаляются при успешном проходе; для продления защиты увеличьте горизонт.
-Обычная задержка до двух минут ещё требует измерения на реальных аккаунтах.
+The protected window runs from the current moment `horizon_days` ahead. Copies outside it
+are deleted on a successful pass; to extend protection, increase the horizon.
+The usual delay of up to two minutes still needs to be measured on real accounts.
 
-## Проверки и сборка
+## Checks and build
 
 ```bash
-make install       # зависимости из Cargo.lock
+make install       # dependencies from Cargo.lock
 make check         # fmt-check, check, clippy, tests, release build, shell syntax
 make build
 make build-release
-make build-local   # оптимизированный бинарник в ./gallendar без публикации
+make build-local   # optimized binary in ./gallendar without publication
 make test
 make lint
 make fmt
 make version
-make smoke-install # архив + SHA-256 + установка в изолированный каталог
+make smoke-install # archive + SHA-256 + install into an isolated directory
 ```
 
-Сборки и пакеты по умолчанию находятся в `~/construction_side/gallendar`;
-`CARGO_TARGET_DIR` и `DIST_DIR` можно переопределить. После сборки release-бинарник
-лежит в `~/construction_side/gallendar/target/release/gallendar`.
+Builds and packages are in `~/construction_side/gallendar` by default;
+`CARGO_TARGET_DIR` and `DIST_DIR` can be overridden. After the build, the release binary
+is at `~/construction_side/gallendar/target/release/gallendar`.
 
-## Релизы
+## Releases
 
-Публичный репозиторий: [RoTorEx/gallendar](https://github.com/RoTorEx/gallendar).
-После коммита изменений и отдельного запроса
-релиза выполнить интерактивно:
+Public repository: [RoTorEx/gallendar](https://github.com/RoTorEx/gallendar).
+After committing changes and a separate release
+request, run interactively:
 
 ```bash
 make release
-# Версия MAJOR.MINOR.PATCH вводится в приглашении команды.
+# Enter the MAJOR.MINOR.PATCH version at the command prompt.
 make release-push
 ```
 
-Как у соседей: `make release` проверяет чистый `main`, получает теги, запускает
-проверки, обновляет Cargo.toml/Cargo.lock и CHANGELOG, создаёт отдельный коммит
-и annotated tag. Сам он не публикует. `make release-push` отправляет `main`
-и annotated tags без force; release tag должен указывать на HEAD.
+As with the neighbours: `make release` checks for a clean `main`, fetches tags, runs
+checks, updates Cargo.toml/Cargo.lock and CHANGELOG, creates a separate commit
+and an annotated tag. It does not publish by itself. `make release-push` pushes `main`
+and annotated tags without force; the release tag must point to HEAD.
 
-Текущий scope релизных сборок — только macOS Apple Silicon (M-чипы),
-`aarch64-apple-darwin`. Intel Mac и Linux отложены; добавление платформ требует
-отдельного согласования. Ранее опубликованные assets остаются доступными.
-Push main и ручной запуск проверяют сборку без публикации. Tag запускает
-проверку версии, упаковку, smoke install и GitHub Release с архивом
-`gallendar-macos-aarch64.tar.gz`, SHA-256 и `gallendar-install.sh`.
-Публичный installer по умолчанию использует `RoTorEx/gallendar` и принимает `--version`, `--archive`, `--install-dir`,
-`--config-dir`, `--no-path-update`; репозиторий можно переопределить
-через `GALLENDAR_INSTALL_REPO=OWNER/REPO`. Конфиги при обновлении сохраняются.
+The current release build scope is macOS Apple Silicon (M chips) only,
+`aarch64-apple-darwin`. Intel Mac and Linux are deferred; adding platforms requires
+separate agreement. Previously published assets remain available.
+A push to main and a manual run check the build without publishing. A tag runs
+version verification, packaging, smoke install, and a GitHub Release with the archive
+`gallendar-macos-aarch64.tar.gz`, SHA-256, and `gallendar-install.sh`.
+The public installer uses `RoTorEx/gallendar` by default and accepts `--version`, `--archive`, `--install-dir`,
+`--config-dir`, `--no-path-update`; the repository can be overridden
+via `GALLENDAR_INSTALL_REPO=OWNER/REPO`. Configs are preserved on update.
 
-## Документы и Kernel
+## Documents and Kernel
 
-- [BUSINESS.md](BUSINESS.md) — назначение, поведение и границы продукта.
-- [ROADMAP.md](ROADMAP.md) — состояние разработки и оставшиеся этапы.
-- [CHANGELOG.md](CHANGELOG.md) — заметные изменения.
-- [AGENTS.md](AGENTS.md) — маршрутизация рабочих инструкций.
+- [BUSINESS.md](BUSINESS.md) — product purpose, behavior, and boundaries.
+- [ROADMAP.md](ROADMAP.md) — development state and remaining stages.
+- [CHANGELOG.md](CHANGELOG.md) — notable changes.
+- [AGENTS.md](AGENTS.md) — routing of working instructions.
 
 ```bash
 make vibe-pull
-# Если путь к Kernel изменился:
+# If the Kernel path has changed:
 make vibe-kernel-set KERNEL=/absolute/path/to/vibecoding-kernel
 make vibe-pull
 ```

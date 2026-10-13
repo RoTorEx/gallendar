@@ -1,169 +1,169 @@
-# gallendar — продуктовые требования
+# gallendar — product requirements
 
-## Назначение и текущий этап
+## Purpose and current stage
 
-Личный self-hosted CLI на Rust для одного пользователя. Текущий scope:
-**Aveni & Thira → Innowise**. Два рабочих календаря являются источниками
-занятости; третий рабочий календарь Innowise получает Busy-копии.
-Цель — закрывать в Innowise интервалы встреч из Aveni и Thira.
-Личный календарь, обратная синхронизация и копирование между Aveni и Thira
-в текущий этап не входят.
+A personal self-hosted Rust CLI for one user. Current scope:
+**Aveni & Thira → Innowise**. Two work calendars are busy-time
+sources; the third work calendar, Innowise, receives Busy copies.
+The goal is to block in Innowise the meeting intervals from Aveni and Thira.
+The personal calendar, reverse synchronization, and copying between Aveni and Thira
+are not part of the current stage.
 
-Реализованы offline demo, проверка доступа, dry-run, однократная и периодическая
-синхронизация. Направления задаются через [[routes]] в TOML в домашнем каталоге
-CLI: ~/.x-cli-gallendar/config.toml. Новый шаблон содержит два маршрута в Innowise.
-Существующие конфиги без routes сохраняют прежнюю синхронизацию всех со всеми;
-они не переключаются автоматически. Доступ к реальным аккаунтам пока не настроен.
-Тип календаря назначения Innowise и его влияние на реальную доступность
-ещё требуется проверить. Эксперимент на двух личных аккаунтах снят с очереди.
+Implemented: offline demo, access check, dry-run, one-shot and periodic
+synchronization. Directions are set through [[routes]] in TOML in the CLI home
+directory: ~/.x-cli-gallendar/config.toml. The new template contains two routes into Innowise.
+Existing configs without routes keep the previous all-to-all synchronization;
+they are not switched automatically. Access to real accounts is not configured yet.
+The type of the Innowise destination calendar and its effect on real availability
+still need to be verified. The experiment on two personal accounts was removed from the queue.
 
-Источники требований: `calendar_busy_sync_mvp_pack.zip` (три документа),
-`ANNEX_01_Product_Decisions.txt` и согласованный план в текущей переписке.
-Неоднозначности находятся в [TASK.md](TASK.md), будущие этапы — в
+Requirement sources: `calendar_busy_sync_mvp_pack.zip` (three documents),
+`ANNEX_01_Product_Decisions.txt`, and the plan agreed in the current conversation.
+Ambiguities are in [TASK.md](TASK.md), future stages in
 [ROADMAP.md](ROADMAP.md).
 
-Текущая платформа релизных сборок — macOS Apple Silicon (M-чипы).
-Сборки для Intel Mac и Linux отложены до отдельного согласования.
+The current release build platform is macOS Apple Silicon (M chips).
+Builds for Intel Mac and Linux are deferred until separately agreed.
 
-## Участники и понятия
+## Actors and concepts
 
-- Владелец пользуется тремя рабочими аккаунтами и настраивает sharing один раз.
-- Коллеги и инструменты бронирования проверяют доступность конкретного аккаунта.
-- Сервис читает источники и управляет только созданными им Busy-копиями.
-- Исходный календарь содержит оригинальные события одного аккаунта.
-- Копия представляет занятый интервал с названием по режиму маршрута.
-- Календарь копий — выбранное назначение Innowise; вторичный календарь
-  допустим только после проверки реальной доступности аккаунта.
+- The owner uses three work accounts and configures sharing once.
+- Colleagues and booking tools check the availability of a specific account.
+- The service reads sources and manages only the Busy copies it created.
+- A source calendar contains the original events of one account.
+- A copy represents a busy interval with a title according to the route mode.
+- The copies calendar is the selected Innowise destination; a secondary calendar
+  is allowed only after verifying the account's real availability.
 
-## Поведение
+## Behavior
 
-Занятость Aveni и Thira создаёт по одной Busy-копии в Innowise.
-Innowise не является источником. В Aveni и Thira сервис ничего не записывает.
-Перенос и изменение длительности обновляют копию; отмена и удаление убирают её.
-Повторные проходы не создают дублей. Для каждого маршрута выбирается режим:
-`mode = "masked"` использует `title` из TOML (по умолчанию `Busy`),
-`mode = "original"` сохраняет только название исходного события, включая пустое.
-При original поле title не используется. Переименование источника или смена
-режима обновляет существующую копию без создания новой. Masked не реагирует
-на переименование источника. Новый шаблон выбирает masked с title = "Busy".
+Busy time in Aveni and Thira creates one Busy copy each in Innowise.
+Innowise is not a source. The service writes nothing to Aveni and Thira.
+Moving and changing duration update the copy; cancellation and deletion remove it.
+Repeated passes do not create duplicates. Each route selects a mode:
+`mode = "masked"` uses `title` from TOML (default `Busy`),
+`mode = "original"` keeps only the source event's title, including an empty one.
+With original, the title field is not used. Renaming the source or changing the
+mode updates the existing copy without creating a new one. Masked does not react
+to renaming the source. The new template selects masked with title = "Busy".
 
-Синхронизируются обычные Busy-события, Out of Office и tentative. События,
-помеченные Free / Available, и отклонённые приглашения не синхронизируются.
-CLI допускает и статус tentative, и ответ владельца «возможно», если событие
-не Free; окончательное продуктовое уточнение остаётся в TASK.md.
+Ordinary Busy events, Out of Office, and tentative events are synchronized. Events
+marked Free / Available and declined invitations are not synchronized.
+The CLI allows both the tentative status and the owner's "maybe" response if the event
+is not Free; the final product clarification remains in TASK.md.
 
-События на весь день синхронизируются только при реальной недоступности.
-Отпуск и Out of Office должны блокировать время; дни рождения, праздники,
-информационные напоминания и события на весь день, помеченные Free, — нет.
-При конфликте информационного смысла события и его статуса Busy правило пока
-не определено. Нельзя молча выводить его из названия события. Для запуска CLI
-оператор явно выбирает политику all_day_policy: только Out of Office либо
-Busy-события с исключением типов birthday и workingLocation. Это не автоматическое
-распознавание отпуска, праздника или напоминания.
+All-day events are synchronized only for real unavailability.
+Vacation and Out of Office must block time; birthdays, holidays,
+informational reminders, and all-day events marked Free must not.
+The rule for a conflict between an event's informational meaning and its Busy status
+is not defined yet. It must not be silently inferred from the event title. To run the CLI,
+the operator explicitly selects the all_day_policy: only Out of Office, or
+Busy events excluding the birthday and workingLocation types. This is not automatic
+recognition of vacation, holidays, or reminders.
 
-Для повторяющихся встреч учитывается фактическое состояние каждого вхождения:
-перенос или отмена одного вхождения затрагивает только его; изменение серии
-обновляет результирующее расписание.
+For recurring meetings, the actual state of each occurrence is used:
+moving or cancelling one occurrence affects only it; changing the series
+updates the resulting schedule.
 
-## Доступ и автономность
+## Access and autonomy
 
-Доступ поддерживает два режима: сервисный JSON-ключ (service_account, прежний
-режим по умолчанию) и пользовательский OAuth (oauth) с отдельными credentials
-каждого рабочего аккаунта. Режим выбирается в корне TOML и может переопределяться
-в [[accounts]]. OAuth запрашивает чтение событий источников и запись в назначения,
-проверяет email владельца и обновляет access tokens через сохранённые refresh
-токены. Вход одного аккаунта не заменяет credentials другого. Ключ сервисного
-аккаунта сохраняется при выборе OAuth; клиентский OAuth JSON — отдельный файл.
-Процедура и сроки авторизации — README.
+Access supports two modes: a service JSON key (service_account, the previous
+default mode) and user OAuth (oauth) with separate credentials
+for each work account. The mode is selected at the TOML root and can be overridden
+in [[accounts]]. OAuth requests event read access for sources and write access for destinations,
+verifies the owner's email, and refreshes access tokens using saved refresh
+tokens. Logging in to one account does not replace another account's credentials. The service
+account key is kept when OAuth is selected; the OAuth client JSON is a separate file.
+The authorization procedure and expiration terms are in the README.
 
-В режиме сервисного ключа пользователь явно делится нужными календарями с
-сервисной учётной записью. Сервису нужны права читать необходимые исходные данные
-и управлять собственными копиями. Скриншоты настроек Aveni и Innowise показали
-ограничение внешнего sharing до free/busy: для этих настроек текущий сервисный
-режим не обеспечивает требуемый доступ. Пользовательский OAuth требует
-разрешения приложению работать от рабочего аккаунта; организация может ограничивать
-и его. Реальная авторизация рабочих пользователей и доступ к календарям пока
-не проверены. Синхронизация работает только пока запущен CLI run, без автозапуска.
+In service key mode, the user explicitly shares the required calendars with the
+service account. The service needs permission to read the required source data
+and manage its own copies. Screenshots of the Aveni and Innowise settings showed
+external sharing limited to free/busy: for these settings, the current service
+mode does not provide the required access. User OAuth requires
+permission for the app to act on behalf of the work account; the organization may restrict
+that too. Real authorization of work users and calendar access are not
+verified yet. Synchronization works only while CLI run is running, without autostart.
 
-Sharing требуется проверить для чтения Aveni и Thira и записи собственных копий в Innowise. Если политика
-организации запрещает нужный доступ, это отдельный блокер для конкретного
-аккаунта. Предлагается простейшая альтернатива для него; общая запасная
-архитектура заранее не строится.
+Sharing must be verified for reading Aveni and Thira and writing own copies to Innowise. If organization
+policy forbids the required access, that is a separate blocker for the specific
+account. The simplest alternative for it is proposed; no general fallback
+architecture is built in advance.
 
-## Приватность и инварианты
+## Privacy and invariants
 
-- Исходное название переносится только при явном mode = "original".
-  При masked переносится только настроенный title. Описания, места, участники,
-  ссылки встреч и прочий контекст не переносятся в любом режиме.
-- Копии остаются private и opaque в обоих режимах; original сохраняет название,
-  но не меняет права видимости Google Calendar.
-- Busy-копии никогда не становятся источником новых копий.
-- Оригинальные события и посторонние события назначения сохраняются.
-- Один оригинал даёт не более одной соответствующей копии на аккаунт назначения.
-- После удаления или переноса освобождается старый интервал, если его не занимает
-  другое действующее событие.
-- Корректная доступность имеет приоритет над визуальной чистотой.
+- The source title is copied only with explicit mode = "original".
+  With masked, only the configured title is copied. Descriptions, locations, attendees,
+  meeting links, and other context are not copied in any mode.
+- Copies stay private and opaque in both modes; original keeps the title
+  but does not change Google Calendar visibility permissions.
+- Busy copies never become a source of new copies.
+- Original events and unrelated destination events are preserved.
+- One original produces at most one corresponding copy per destination account.
+- After deletion or a move, the old interval is freed unless it is occupied by
+  another active event.
+- Correct availability takes priority over visual tidiness.
 
-## Условный дизайн календарей копий
+## Conditional copies calendar design
 
-Отдельный календарь копий в Innowise допустим только после проверки, что он
-закрывает реальную доступность Innowise. Основной или вторичный календарь
-назначения ещё не выбран. Независимое скрытие копий — вторичное удобство.
+A separate copies calendar in Innowise is allowed only after verifying that it
+blocks Innowise's real availability. The primary or secondary destination calendar
+is not selected yet. Independently hiding copies is a secondary convenience.
 
-Этот дизайн ещё не подтверждён. До подтверждения пригодности и эксплуатации обязательна проверка
-реальных сценариев планирования; наличие Busy-события или успешный API-запрос
-не доказывают недоступность аккаунта. При NO-GO дизайн прекращается и
-предлагается вариант с копиями в основных календарях. Автоматического перехода
-на него нет.
+This design is not confirmed yet. Until suitability and operation are confirmed, checking
+real scheduling scenarios is mandatory; the presence of a Busy event or a successful API request
+does not prove the account is unavailable. On NO-GO, the design is abandoned and
+a variant with copies in the primary calendars is proposed. There is no automatic switch
+to it.
 
-## Численные решения
+## Numeric decisions
 
-| Значение | Единица и смысл | Причина и источник | Последствия изменения, границы и проверки |
+| Value | Unit and meaning | Reason and source | Change impact, boundaries, and checks |
 |---|---|---|---|
-| 1 | пользователь | Личный сервис, исходный бриф | Несколько пользователей меняют границы продукта; не входят в MVP |
-| 3 | рабочих аккаунта | Уточнение пользователя: Aveni, Thira, Innowise | Два источника и одно назначение; проверяются оба маршрута |
-| 1 | назначение одного оригинала | Уточнение пользователя: только Innowise | Проверить отсутствие записи в Aveni и Thira |
-| 2 | минуты обычной задержки | ANNEX §1: real-time не нужен | Более высокая задержка повышает риск конфликтов; измерять от изменения источника до результата в назначениях; гарантия при сбоях не задана |
-| 2 | источника занятости | Уточнение пользователя: Aveni и Thira | Проверить каждый источник независимо |
+| 1 | user | Personal service, original brief | Multiple users change product boundaries; not in the MVP |
+| 3 | work accounts | User clarification: Aveni, Thira, Innowise | Two sources and one destination; both routes are checked |
+| 1 | destination per original | User clarification: Innowise only | Verify that nothing is written to Aveni and Thira |
+| 2 | minutes of usual delay | ANNEX §1: real time is not needed | Higher delay increases the risk of conflicts; measure from the source change to the result in destinations; no guarantee under failures is defined |
+| 2 | busy-time sources | User clarification: Aveni and Thira | Check each source independently |
 
-## Параметры текущего CLI
+## Current CLI parameters
 
-Конфиг задаёт горизонт явно: окно начинается сейчас, копии вне окна удаляются
-после успешного чтения всех календарей. Это ограничение текущего CLI; окончательная
-продуктовая граница прошлого и будущего остаётся открытой задачей. Идентичности
-повторений учитывают серию и первоначальное начало вхождения.
+The config sets the horizon explicitly: the window starts now, and copies outside the window are deleted
+after all calendars are read successfully. This is a limitation of the current CLI; the final
+product boundary for past and future remains an open task. Recurrence
+identities account for the series and the occurrence's original start.
 
-- horizon_days: от 1 до 3650 дней; технический предел ограничивает слишком большие
-  раскрытия повторений. Пример 30 дней не является бизнес-default.
-- poll_seconds: от 1 до 120 секунд между началами проходов; пример 60 секунд.
-  Если проход длится дольше интервала, следующий начинается после завершения.
-  Эти настройки не доказывают соблюдение целевой задержки без реального измерения.
-- Один писатель на одном хосте для одного namespace/config. Локальный lock
-  предотвращает параллельные запуски конфига, распределённой блокировки нет.
-- auto_update: true по умолчанию; установленный CLI проверяет GitHub Release
-  в фоне при рабочих командах не чаще раза в 24 часа. Интервал ограничивает
-  сетевые запросы; уже запущенный run не перезапускается. Настройка и детали — README.
-- CLI получает новый сервисный или OAuth access token на каждом проходе.
-  OAuth-вход ждёт локальный callback до 180 секунд: ограниченный срок оставляет
-  время выбрать аккаунт и не держит незавершённый вход бессрочно; проверяется state.
-  Сетевой timeout — 30 секунд на запрос; ошибка останавливает текущий проход.
+- horizon_days: 1 to 3650 days; the technical limit restricts overly large
+  recurrence expansions. The 30-day example is not a business default.
+- poll_seconds: 1 to 120 seconds between pass starts; example 60 seconds.
+  If a pass takes longer than the interval, the next one starts after it completes.
+  These settings do not prove the target delay is met without real measurement.
+- One writer on one host per namespace/config. A local lock
+  prevents parallel runs of a config; there is no distributed lock.
+- auto_update: true by default; the installed CLI checks GitHub Release
+  in the background during working commands at most once per 24 hours. The interval limits
+  network requests; an already running run is not restarted. Setup and details are in the README.
+- The CLI obtains a new service or OAuth access token on each pass.
+  OAuth login waits for the local callback for up to 180 seconds: the limited period leaves
+  time to choose an account and does not keep an unfinished login open indefinitely; state is verified.
+  The network timeout is 30 seconds per request; an error stops the current pass.
 
-Проверки этих границ находятся в Rust-тестах: повторный проход, сбой источника,
-восстановление после неизвестного результата записи, исключения повторений,
-all-day в Europe/Warsaw через DST, privacy и HTTP read-back. Базовые команды,
-локальная установка и релиз соответствуют соседним CLI; их владелец — README,
-Makefile и scripts, а не план будущей разработки.
+Checks of these boundaries are in the Rust tests: repeated pass, source failure,
+recovery after an unknown write result, recurrence exceptions,
+all-day in Europe/Warsaw across DST, privacy, and HTTP read-back. Basic commands,
+local installation, and release follow the neighbouring CLIs; their owners are the README,
+Makefile, and scripts, not the future development plan.
 
-## Приёмка и карта модулей
+## Acceptance and module map
 
-`src/model.rs` отвечает за правила событий и приватный payload, `src/engine.rs`
-— за согласование копий, `src/google.rs` — за API и read-back.
+`src/model.rs` owns event rules and the private payload, `src/engine.rs`
+owns copy reconciliation, and `src/google.rs` owns the API and read-back.
 [business/validation.md](business/validation.md)
-содержит протокол гипотезы, критерии GO / NO-GO и десять сценариев приёмки MVP.
-Решения о поведении принадлежат этому документу; процедура проверки — модулю.
+contains the hypothesis protocol, GO / NO-GO criteria, and ten MVP acceptance scenarios.
+Behavior decisions belong to this document; the verification procedure belongs to the module.
 
-## Вне MVP
+## Outside the MVP
 
-Веб-интерфейс, мобильное приложение, не-Google провайдеры, многопользовательская
-платформа, биллинг, подписки, команды, организации, общее управление аккаунтами
-и расширенная конфигурация, не нужная для двух маршрутов Aveni/Thira → Innowise.
+Web interface, mobile app, non-Google providers, multi-user
+platform, billing, subscriptions, teams, organizations, general account management,
+and extended configuration not needed for the two Aveni/Thira → Innowise routes.

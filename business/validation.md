@@ -1,95 +1,95 @@
-# Проверка гипотезы и приёмка
+# Hypothesis check and acceptance
 
-Продуктовые правила: [BUSINESS.md](../BUSINESS.md).
-Очередь: [TASK.md](../TASK.md).
+Product rules: [BUSINESS.md](../BUSINESS.md).
+Queue: [TASK.md](../TASK.md).
 
-## Текущие результаты
+## Current results
 
-**Не проверено.** Доступ пока не настроен. Текущая проверка относится к
-Aveni → Innowise и Thira → Innowise; личные аккаунты не нужны.
+**Not verified.** Access is not configured yet. The current check applies to
+Aveni → Innowise and Thira → Innowise; personal accounts are not needed.
 
-## Подготовка и последовательность
+## Preparation and sequence
 
-1. Установить точные Calendar ID двух источников и назначения Innowise.
-   Выбрать наблюдателя, который видит доступность Innowise в реальном рабочем
-   сценарии «Найти время»; при отсутствии видимости проверка неполна.
-2. Установить исходную доступность свободного будущего интервала. Контрольный
-   Busy в основном календаре Innowise должен закрыть интервал; его удаление —
-   освободить. Использовать синтетические данные без отправки приглашений.
-3. Создать Busy в выбранном календаре назначения Innowise и проверить именно
-   доступность человека Innowise, а не видимость календаря в общей сетке.
-   Для вторичного календаря проверить также скрытие у владельца.
-4. Проверить перенос и удаление блока, затем используемые страницы бронирования
-   и прочие обязательные инструменты. При провале вторичного календаря
-   предложить основной календарь; не менять назначение автоматически.
-5. После подтверждения назначения проверить CLI с двумя routes: создание
-   оригинала Aveni, dry-run, apply, повторный проход, перенос и удаление.
-   Повторить для Thira. Копии должны появляться только в Innowise.
-6. Проверить, что существующая встреча Innowise сохраняется и не копируется
-   в источники; Aveni и Thira не получают записей сервиса.
+1. Establish the exact Calendar IDs of the two sources and the Innowise destination.
+   Choose an observer who sees Innowise availability in a real work
+   "Find a time" scenario; without that visibility, the check is incomplete.
+2. Establish the baseline availability of a free future interval. A control
+   Busy in the Innowise primary calendar must block the interval; deleting it must
+   free it. Use synthetic data without sending invitations.
+3. Create a Busy in the selected Innowise destination calendar and check specifically
+   the availability of the Innowise person, not the calendar's visibility in the combined grid.
+   For a secondary calendar, also check hiding it for the owner.
+4. Check moving and deleting the block, then the booking pages in use
+   and other required tools. If the secondary calendar fails,
+   propose the primary calendar; do not change the destination automatically.
+5. After the destination is confirmed, check the CLI with two routes: creating
+   an Aveni original, dry-run, apply, repeated pass, move, and deletion.
+   Repeat for Thira. Copies must appear only in Innowise.
+6. Check that an existing Innowise meeting is preserved and not copied
+   into the sources; Aveni and Thira receive no writes from the service.
 
-## Дополнительная API-диагностика
+## Additional API diagnostics
 
-При наличии доступа отдельно запросить `freeBusy.query` для основного календаря
-и календаря копий в тестовом интервале. Проверять ошибки каждого календаря,
-а не только успешный HTTP-ответ. Не использовать объединённый запрос к двум
-календарям как доказательство автоматического учёта копий при проверке аккаунта.
+When access is available, separately query `freeBusy.query` for the primary calendar
+and the copies calendar in the test interval. Check each calendar's errors,
+not only a successful HTTP response. Do not use a combined request for both
+calendars as proof that copies are automatically accounted for when checking the account.
 
-Google API возвращает занятость заданных календарей:
+The Google API returns busy time for the specified calendars:
 [Freebusy: query](https://developers.google.com/workspace/calendar/api/v3/reference/freebusy/query).
-Для appointment schedules проверка вторичных календарей зависит от подходящего
-тарифа и выбора календарей:
+For appointment schedules, checking secondary calendars depends on a suitable
+plan and calendar selection:
 [Check your availability across calendars](https://support.google.com/calendar/answer/16287054?hl=en-GB).
-Документация служит подготовкой; итог определяется реальным наблюдением.
+Documentation serves as preparation; the outcome is determined by real observation.
 
-## Решение
+## Decision
 
-- **GO:** выбранное назначение блокирует доступность Innowise во всех
-  обязательных способах планирования; подтверждены чтение обоих источников,
-  запись и оба маршрута CLI.
-- **NO-GO:** в обязательном сценарии аккаунт остаётся свободным при существующей
-  Busy-копии. Прекратить этот дизайн и предложить копии в основных календарях
-  с явным изменением UX, без автоматического перехода.
-- **Неполная проверка:** нет доступа, корректного наблюдателя или обязательного
-  инструмента. Записать недостающее доказательство; GO не выставлять.
+- **GO:** the selected destination blocks Innowise availability in all
+  required scheduling methods; reading both sources, writing,
+  and both CLI routes are confirmed.
+- **NO-GO:** in a required scenario, the account stays free while a
+  Busy copy exists. Abandon this design and propose copies in the primary calendars
+  with an explicit UX change, without an automatic switch.
+- **Incomplete check:** no access, correct observer, or required
+  tool. Record the missing evidence; do not set GO.
 
-## Очистка и протокол
+## Cleanup and protocol
 
-Удалить только созданные тестом события и пустые тестовые календари, если они
-не нужны дальше. Восстановить исходные настройки видимости и доступа.
-Проверить отсутствие тестовых блоков и восстановленную доступность.
+Delete only events created by the test and empty test calendars if they
+are not needed further. Restore the original visibility and access settings.
+Check that no test blocks remain and that availability is restored.
 
-После эксперимента заменить раздел текущих результатов фактическим протоколом:
+After the experiment, replace the current results section with the actual protocol:
 
-- Дата; время в Europe/Warsaw с корректной сезонной меткой CET или CEST.
-- Условные обозначения аккаунтов, роли, типы календарей и права наблюдателя.
-- Инструменты, тарифы и влияющие на проверку настройки.
-- Для каждого маршрута в Innowise: исходная доступность, контроль основного календаря,
-  копия, скрытие, перенос и удаление; ожидаемое и фактическое состояние.
-- Проверенные права сервисной учётной записи и конкретные блокеры организаций.
-- Результат GO / NO-GO / неполно, пределы применимости и оставшиеся проверки.
-- Выполненная очистка и любые намеренно оставленные тестовые объекты.
+- Date; time in Europe/Warsaw with the correct seasonal label CET or CEST.
+- Account aliases, roles, calendar types, and observer permissions.
+- Tools, plans, and settings that affect the check.
+- For each route into Innowise: baseline availability, primary calendar control,
+  copy, hiding, move, and deletion; expected and actual state.
+- Verified service account permissions and specific organizational blockers.
+- GO / NO-GO / incomplete result, limits of applicability, and remaining checks.
+- Cleanup performed and any intentionally retained test objects.
 
-Не сохранять секреты и содержание реальных событий. Не записывать будущие
-или предполагаемые результаты как выполненные.
+Do not save secrets or real event content. Do not record future
+or assumed results as completed.
 
-## Приёмка полного MVP
+## Full MVP acceptance
 
-| № | Сценарий | Ожидаемый результат |
+| # | Scenario | Expected result |
 |---|---|---|
-| 1 | Встреча Aveni | Innowise занят; название соответствует режиму маршрута |
-| 2 | Встреча Thira | Innowise занят; детали остаются только в источнике |
-| 3 | Перенос | Копии следуют за источником; старый интервал свободен, если нет другой занятости; дублей нет |
-| 4 | Отмена или удаление | Соответствующие копии исчезают; освобождается время, не занятое другими событиями |
-| 5 | Нет обратной связи | Копия не порождает копий; один оригинал даёт одну копию на назначение |
-| 6 | Режим названия и приватность | Masked показывает title из TOML; original сохраняет название и его изменения. Остальные детали не переносятся; смена режима обновляет копию |
-| 7 | Существующие встречи Innowise | Сохранены без изменений и не становятся источниками |
-| 8 | Внешняя доступность | Коллега и обязательные инструменты видят аккаунт занятым; провал блокирует приёмку дизайна |
-| 9 | Направления | Оба источника блокируют только Innowise; записи в Aveni и Thira отсутствуют |
-| 10 | Автономность | После настройки обычные изменения синхронизируются без ручного запуска и повторных входов |
+| 1 | Aveni meeting | Innowise is busy; the title matches the route mode |
+| 2 | Thira meeting | Innowise is busy; details stay only in the source |
+| 3 | Move | Copies follow the source; the old interval is free if nothing else occupies it; no duplicates |
+| 4 | Cancellation or deletion | The corresponding copies disappear; time not occupied by other events is freed |
+| 5 | No feedback loop | A copy does not produce copies; one original produces one copy per destination |
+| 6 | Title mode and privacy | Masked shows the title from TOML; original keeps the title and its changes. Other details are not copied; changing the mode updates the copy |
+| 7 | Existing Innowise meetings | Preserved unchanged and do not become sources |
+| 8 | External availability | A colleague and required tools see the account as busy; failure blocks acceptance of the design |
+| 9 | Directions | Both sources block only Innowise; there are no writes to Aveni and Thira |
+| 10 | Autonomy | After setup, ordinary changes are synchronized without manual runs or repeated logins |
 
-Дополнительно пройти Busy/Free, Out of Office, согласованное значение tentative,
-отклонённые приглашения, согласованные правила событий на весь день, изменение
-и отмену одного повторения, изменение серии, пересечение событий, повторный
-проход, перезапуск и недоступность источника. Измерить обычную задержку до
-двух минут от изменения источника до наблюдаемого результата назначения.
+Additionally go through Busy/Free, Out of Office, the agreed meaning of tentative,
+declined invitations, the agreed all-day event rules, changing
+and cancelling one recurrence, changing the series, overlapping events, a repeated
+pass, a restart, and source unavailability. Measure the usual delay of up to
+two minutes from the source change to the observed destination result.

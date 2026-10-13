@@ -2,48 +2,48 @@
 
 ## [Unreleased]
 
-- Добавлен OAuth Desktop вход по аккаунтам: auth login/status, PKCE и state,
-  проверка email и scopes, отдельные приватные refresh tokens и их обновление.
-  TOML выбирает oauth/service_account глобально или по аккаунту; сервисный ключ
-  и существующие конфиги сохранены. Синхронизация использует токен календаря.
+- Added per-account OAuth Desktop login: auth login/status, PKCE and state,
+  email and scope verification, separate private refresh tokens and their refresh.
+  TOML selects oauth/service_account globally or per account; the service key
+  and existing configs are preserved. Synchronization uses the calendar token.
 
-- Будущие релизные сборки ограничены macOS Apple Silicon (M-чипы);
-  Intel Mac и Linux убраны из CI-матрицы. Опубликованные релизы не изменены.
+- Future release builds are limited to macOS Apple Silicon (M chips);
+  Intel Mac and Linux were removed from the CI matrix. Published releases are unchanged.
 
 ## [0.1.1] - 2026-10-13
 
-- Исправлено автообновление: проверка версии использует публичный redirect
-  GitHub Releases вместо API, чтобы не зависеть от лимита анонимных API-запросов
-  и не требовать GitHub-токен.
+- Fixed automatic updates: the version check uses the public GitHub Releases
+  redirect instead of the API, so it does not depend on the anonymous API request limit
+  and does not require a GitHub token.
 
 ## [0.1.0] - 2026-10-13
 
-- Настроен публичный репозиторий RoTorEx/gallendar; update и installer используют
-  его по умолчанию. Добавлены фоновая ежедневная проверка обновления при запуске
-  рабочих команд (auto_update в TOML), журнал ошибок, блокировка параллельных
-  обновлений и запрет понижения версии. Конфиг и ключи сохраняются.
-- Добавлены проверки сборки и установки на main без публикации; тег выпускает
-  assets для macOS Apple Silicon, Intel и Linux x86_64.
+- Configured the public repository RoTorEx/gallendar; update and the installer use
+  it by default. Added a daily background update check when working commands
+  start (auto_update in TOML), an error log, a lock against parallel
+  updates, and a ban on downgrades. Config and keys are preserved.
+- Added build and install checks on main without publishing; a tag releases
+  assets for macOS Apple Silicon, Intel, and Linux x86_64.
 
-- Текущий scope сужен до Aveni & Thira → Innowise. Добавлены явные маршруты
-  [[routes]] в TOML и шаблон двух источников с одним назначением; doctor и sync
-  используют только роли выбранных маршрутов. Старые конфиги без routes
-  сохраняют прежнее поведение. Для каждого маршрута поддерживаются masked с
-  заданным title и original с исходным названием; смена режима обновляет копии.
-  Реальный доступ ещё не настроен.
+- Narrowed the current scope to Aveni & Thira → Innowise. Added explicit
+  [[routes]] in TOML and a template with two sources and one destination; doctor and sync
+  use only the roles of the selected routes. Old configs without routes
+  keep the previous behavior. Each route supports masked with a
+  configured title and original with the source title; changing the mode updates copies.
+  Real access is not configured yet.
 
-- Добавлены локальная сборка через `make build-local` в `./gallendar` и пошаговая
-  инструкция подключения Google Cloud и двух личных Google Calendar аккаунтов.
+- Added a local build via `make build-local` into `./gallendar` and a step-by-step
+  guide for connecting Google Cloud and two personal Google Calendar accounts.
 
-- Добавлен рабочий Rust CLI: setup/config/home/version/update, demo, doctor,
-  dry-run, sync, run и диагностика free/busy.
-- Добавлены Busy-копии с приватными метками, фильтрация приглашений, обработка
-  раскрытых повторений и исключений, read-back и восстановление после сбоев.
-- Добавлены нативные Rust-проверки, локальная установка, упаковка и smoke install,
-  интерактивный release/release-push и GitHub Release workflow как у соседних CLI.
+- Added a working Rust CLI: setup/config/home/version/update, demo, doctor,
+  dry-run, sync, run, and free/busy diagnostics.
+- Added Busy copies with private markers, invitation filtering, handling of
+  expanded recurrences and exceptions, read-back, and recovery after failures.
+- Added native Rust checks, local installation, packaging and smoke install,
+  interactive release/release-push, and a GitHub Release workflow like the neighbouring CLIs.
 
-- Зафиксированы требования Cross-calendar Busy Sync из исходного MVP и ANNEX 01.
-- Добавлены очередь проверки гипотезы и неоднозначностей, этапы разработки,
-  ручной протокол GO / NO-GO и десять сценариев приёмки.
-- Первый эксперимент уточнён: два личных аккаунта; доступ пока не настроен.
-- Проверка whitespace документов сохранена в расширенном `make check`.
+- Recorded the Cross-calendar Busy Sync requirements from the original MVP and ANNEX 01.
+- Added a queue for the hypothesis check and ambiguities, development stages,
+  a manual GO / NO-GO protocol, and ten acceptance scenarios.
+- Refined the first experiment: two personal accounts; access is not configured yet.
+- Kept the document whitespace check in the extended `make check`.

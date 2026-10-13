@@ -1,25 +1,25 @@
-# Направление разработки
+# Development direction
 
-Текущий результат: **Aveni & Thira → Innowise** — зеркало занятости двух
-рабочих календарей в третий, без содержания встреч и обратной синхронизации.
-На этом scope останавливаемся. Очередь — [TASK.md](TASK.md).
+Current result: **Aveni & Thira → Innowise** — a busy-time mirror of two
+work calendars into a third, without meeting content or reverse synchronization.
+We stop at this scope. Queue: [TASK.md](TASK.md).
 
-## Реализовано
+## Implemented
 
-Rust CLI: setup/config/home/version/update, demo, doctor, dry-run, sync и run.
-В TOML можно задать источники, назначение и явные маршруты [[routes]].
-Новый шаблон задаёт Aveni → Innowise и Thira → Innowise.
-Есть сервисный и пользовательский OAuth доступ, отдельный вход по аккаунтам
-и автоматическое обновление OAuth access tokens. Есть обработка повторений, приватные Busy-копии, read-back и восстановление.
-Существующий четырёхаккаунтный offline demo сохранён как проверка движка.
+Rust CLI: setup/config/home/version/update, demo, doctor, dry-run, sync, and run.
+TOML can define sources, the destination, and explicit [[routes]].
+The new template defines Aveni → Innowise and Thira → Innowise.
+There is service and user OAuth access, separate per-account login,
+and automatic refresh of OAuth access tokens. There is recurrence handling, private Busy copies, read-back, and recovery.
+The existing four-account offline demo is kept as an engine check.
 
-## Осталось для рабочего результата
+## Remaining for a working result
 
-Настроить доступ к трём рабочим аккаунтам, выбрать календарь назначения,
-проверить реальную доступность Innowise, оба маршрута при запущенном CLI run. Автозапуск отложен.
-Доступ и эксплуатация ещё не подтверждены. Публичный репозиторий —
-[RoTorEx/gallendar](https://github.com/RoTorEx/gallendar); выпуски доступны на странице
-[Releases](https://github.com/RoTorEx/gallendar/releases).
+Configure access to the three work accounts, choose the destination calendar,
+verify Innowise's real availability and both routes with CLI run running. Autostart is deferred.
+Access and operation are not confirmed yet. Public repository:
+[RoTorEx/gallendar](https://github.com/RoTorEx/gallendar); releases are available on the
+[Releases](https://github.com/RoTorEx/gallendar/releases) page.
 
-Личный календарь, всеобщая синхронизация, веб-интерфейс и другие провайдеры
-не входят в текущий этап. Обновление и автообновление входят в текущую релизную доставку.
+The personal calendar, all-to-all synchronization, a web interface, and other providers
+are not part of the current stage. Update and automatic updates are part of the current release delivery.

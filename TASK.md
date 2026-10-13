@@ -1,28 +1,28 @@
-# Текущие задачи
+# Current tasks
 
-Scope: **Aveni & Thira → Innowise**. Правила — [BUSINESS.md](BUSINESS.md).
+Scope: **Aveni & Thira → Innowise**. Rules: [BUSINESS.md](BUSINESS.md).
 
-## 1. Подключить рабочие календари
+## 1. Connect the work calendars
 
-- [ ] Установить email владельцев и Calendar ID источников Aveni, Thira и
-  назначения Innowise; выбрать основной или вторичный календарь назначения.
-- [ ] Создать OAuth Desktop app client и войти в рабочие аккаунты через auth login.
-  Aveni и Innowise ограничивают внешнее sharing до free/busy; сервисный ключ
-  установлен, но текущие нужные права sharing для них недоступны. Проверить
-  корпоративное разрешение OAuth и ограничения Thira.
-- [ ] Заполнить ~/.x-cli-gallendar/config.toml по новому шаблону с двумя routes.
-  Ключ хранить вне репозитория. Существующий конфиг setup не перезаписывает.
-- [ ] Пройти doctor и dry-run; проверить, что записи планируются только в Innowise.
+- [ ] Establish the owner emails and Calendar IDs of the Aveni and Thira sources and
+  the Innowise destination; choose the primary or secondary destination calendar.
+- [ ] Create an OAuth Desktop app client and log in to the work accounts via auth login.
+  Aveni and Innowise limit external sharing to free/busy; the service key
+  is installed, but the currently required sharing permissions are unavailable for them. Check
+  corporate OAuth permission and Thira's restrictions.
+- [ ] Fill in ~/.x-cli-gallendar/config.toml from the new template with two routes.
+  Keep the key outside the repository. setup does not overwrite an existing config.
+- [ ] Run doctor and dry-run; verify that writes are planned only in Innowise.
 
-## 2. Проверить результат и запустить
+## 2. Verify the result and launch
 
-- [ ] Проверить доступность Innowise из реального рабочего сценария по
+- [ ] Verify Innowise availability from a real work scenario according to
   [business/validation.md](business/validation.md).
-- [ ] Пройти создание, повторный проход, перенос, удаление, повторения и
-  перезапуск отдельно для Aveni → Innowise и Thira → Innowise.
-- [ ] Согласовать all-day, tentative, горизонт и способ обнаружения остановки.
-- [ ] Измерить задержку до двух минут при запущенном CLI run. Автозапуск пока отложен.
+- [ ] Go through creation, repeated pass, move, deletion, recurrences, and
+  restart separately for Aveni → Innowise and Thira → Innowise.
+- [ ] Agree on all-day, tentative, the horizon, and how to detect a stop.
+- [ ] Measure the delay of up to two minutes with CLI run running. Autostart is deferred for now.
 
-Следующие релизы и расширение scope требуют отдельного запроса.
-Текущий запрос разрешает публичный RoTorEx/gallendar, первый релиз v0.1.0
-и установку из GitHub с рабочими update и автообновлением.
+Further releases and scope expansion require a separate request.
+The current request authorizes the public RoTorEx/gallendar, the first release v0.1.0,
+and installation from GitHub with working update and automatic updates.

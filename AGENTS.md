@@ -33,6 +33,8 @@ This project uses committed local copies of the Vibecoding Kernel.
   local fix while waiting for a parent-kernel decision.
 - Add project-specific routing here only when it prevents repeated mistakes or
   unnecessary context loading.
+- Write all authored project artifacts (code, comments, docs, plans, and commit
+  messages) in English; keep non-English text only for verbatim data or examples.
 
 - For CLI commands, local installation and releases, read README.md and the
   relevant scripts/* owner. Preserve the neighbouring CLI conventions documented
