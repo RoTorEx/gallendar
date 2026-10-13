@@ -151,7 +151,12 @@ pub fn run(action: &str, config: &Path, home: &Path) -> Result<Value> {
                 }
             }
             result["config"] = json!(active_config);
-            result["sync"] = crate::logging::sync_status(&home.join("logs"), &active_config)?;
+            result["sync"] = crate::logging::sync_status(
+                &home.join("logs"),
+                &active_config,
+                result["pid"].as_u64().and_then(|p| u32::try_from(p).ok()),
+            )?;
+            result["version"] = result["sync"]["worker_version"].clone();
             Ok(result)
         }
         "restart" => {

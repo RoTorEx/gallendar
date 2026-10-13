@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- Add `gallendar status` with a readable local overview, actual running daemon
+  version, latest synchronization result and Warsaw timestamps; support `--json`.
+
 ## [0.2.3] - 2026-10-13
 
 - Original-title copies now inherit destination calendar visibility instead of being

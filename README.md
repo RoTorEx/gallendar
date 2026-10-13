@@ -99,7 +99,16 @@ Find a time check.
 
 ### Local macOS daemon
 
+`gallendar status` shows a readable local overview: CLI version, daemon state and
+its actual running version/PID, autostart, routes, authentication mode, window,
+interval, automatic updates, latest applied periodic result and config/log paths.
+Use `gallendar status --json` for structured output. This command does not contact
+Google or trigger an update. Human timestamps use Europe/Warsaw with the actual
+CET/CEST offset; JSON retains UTC. The daemon version comes from its startup journal
+matched to the current PID and config; unavailable evidence is shown as unknown.
+
 ```bash
+gallendar status
 gallendar daemon start
 gallendar daemon status
 gallendar daemon stop

@@ -6,6 +6,7 @@ mod google;
 mod logging;
 mod model;
 mod oauth;
+mod status;
 mod update;
 
 use anyhow::{Context, Result, bail, ensure};
@@ -61,6 +62,8 @@ enum Command {
     Home,
     /// Print the installed version
     Version,
+    /// Show local configuration, daemon version and synchronization health
+    Status,
     /// Install the latest compatible GitHub Release
     Update {
         /// GitHub OWNER/REPO (or GALLENDAR_RELEASE_REPO)
@@ -338,6 +341,7 @@ fn run() -> Result<()> {
         Command::Config { .. } => "config",
         Command::Home => "home",
         Command::Version => "version",
+        Command::Status => "status",
         Command::Update { .. } => "update",
         Command::Auth { .. } => "auth",
         Command::Calendar { .. } => "calendar",
@@ -412,6 +416,9 @@ fn run_cli(cli: &Cli) -> Result<()> {
             return Ok(());
         }
         _ => {}
+    }
+    if let Command::Status = command {
+        return status::run(&path, &home()?, cli.json);
     }
     if let Command::Daemon { action } = command {
         let action = match action {

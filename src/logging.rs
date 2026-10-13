@@ -185,7 +185,7 @@ mod tests {
 }
 
 /// Read applied periodic-pass outcomes; previews and other configurations are excluded.
-pub fn sync_status(directory: &Path, config: &Path) -> Result<Value> {
+pub fn sync_status(directory: &Path, config: &Path, pid: Option<u32>) -> Result<Value> {
     use std::collections::BTreeMap;
     use std::io::{BufRead, BufReader};
     let mut files: Vec<_> = fs::read_dir(directory)?
@@ -198,6 +198,8 @@ pub fn sync_status(directory: &Path, config: &Path) -> Result<Value> {
         .unwrap_or_else(|_| config.to_path_buf());
     let mut sessions: BTreeMap<String, bool> = BTreeMap::new();
     let mut applied: BTreeMap<String, bool> = BTreeMap::new();
+    let mut worker_version = Value::Null;
+    let mut worker_started_at = Value::Null;
     let mut last_pass = Value::Null;
     let mut last_success = Value::Null;
     let mut last_failure = Value::Null;
@@ -224,7 +226,12 @@ pub fn sync_status(directory: &Path, config: &Path) -> Result<Value> {
                         .unwrap_or_else(|_| PathBuf::from(p))
                         == canonical
                 });
-                sessions.insert(session.into(), same && data["command"] == "run");
+                let is_run = same && data["command"] == "run";
+                sessions.insert(session.into(), is_run);
+                if is_run && pid.is_some_and(|p| record["pid"].as_u64() == Some(u64::from(p))) {
+                    worker_version = data["version"].clone();
+                    worker_started_at = record["timestamp"].clone();
+                }
                 continue;
             }
             if sessions.get(session) != Some(&true) {
@@ -247,12 +254,48 @@ pub fn sync_status(directory: &Path, config: &Path) -> Result<Value> {
             }
         }
     }
-    Ok(json!({"last_pass":last_pass,"last_success":last_success,"last_failure":last_failure}))
+    Ok(
+        json!({"last_pass":last_pass,"last_success":last_success,"last_failure":last_failure,"worker_version":worker_version,"worker_started_at":worker_started_at}),
+    )
 }
 
 #[cfg(test)]
 mod status_tests {
     use super::*;
+    #[test]
+    fn worker_version_requires_the_running_pid_config_and_command() {
+        let path = std::env::temp_dir().join(format!("gallendar-status-{}", uuid::Uuid::new_v4()));
+        fs::create_dir(&path).unwrap();
+        let logger = Logger::new(&path).unwrap();
+        let config = path.join("config.toml");
+        logger
+            .write(
+                Utc::now(),
+                "command_started",
+                json!({
+                    "command":"run","config":config,"version":"0.2.2"
+                }),
+            )
+            .unwrap();
+        let pid = std::process::id();
+        assert_eq!(
+            sync_status(&path, &config, Some(pid)).unwrap()["worker_version"],
+            "0.2.2"
+        );
+        assert!(sync_status(&path, &config, Some(pid + 1)).unwrap()["worker_version"].is_null());
+        assert!(sync_status(&path, &config, None).unwrap()["worker_version"].is_null());
+        for data in [
+            json!({"command":"run","config":"/unrelated","version":"9.9.9"}),
+            json!({"command":"status","config":config,"version":"9.9.9"}),
+        ] {
+            logger.write(Utc::now(), "command_started", data).unwrap();
+        }
+        assert_eq!(
+            sync_status(&path, &config, Some(pid)).unwrap()["worker_version"],
+            "0.2.2"
+        );
+        fs::remove_dir_all(path).unwrap();
+    }
     #[test]
     fn status_excludes_previews_other_configs_and_unrelated_commands() {
         let path = std::env::temp_dir().join(format!("gallendar-status-{}", uuid::Uuid::new_v4()));
@@ -273,7 +316,7 @@ mod status_tests {
                 json!({"duration_ms":1,"error":null}),
             )
             .unwrap();
-        assert!(sync_status(&path, &config).unwrap()["last_success"].is_null());
+        assert!(sync_status(&path, &config, None).unwrap()["last_success"].is_null());
         logger
             .write(Utc::now(), "pass_started", json!({"apply":true}))
             .unwrap();
@@ -319,7 +362,7 @@ mod status_tests {
                 json!({"duration_ms":5,"error":null}),
             )
             .unwrap();
-        let state = sync_status(&path, &config).unwrap();
+        let state = sync_status(&path, &config, None).unwrap();
         assert_eq!(state["last_success"]["duration_ms"], 2);
         assert_eq!(state["last_failure"]["error"], "timeout");
         assert_eq!(state["last_pass"]["duration_ms"], 3);

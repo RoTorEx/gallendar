@@ -111,6 +111,12 @@ reads applied periodic outcomes for its registered config from the private journ
 last_pass, last_success and last_failure include original UTC timestamps, duration
 and error. Previews, one-shot commands and unrelated configs are excluded. Old
 failures remain visible after recovery; last_pass determines the latest outcome.
+`gallendar status` provides the general local overview without Google calls or
+automatic updates, even when config is missing or invalid. It distinguishes the
+invoked CLI version from the running daemon version, using the current worker PID
+and config to find its startup record. Unknown worker versions remain unknown.
+Human-readable times use Europe/Warsaw with the date-specific CET/CEST offset;
+structured output retains original UTC timestamps. `--json` supports scripts.
 
 Sharing must be verified for reading Aveni and Thira and writing own copies to Innowise. If organization
 policy forbids the required access, that is a separate blocker for the specific
