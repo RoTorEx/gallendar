@@ -1,4 +1,5 @@
 mod config;
+mod daemon;
 mod demo;
 mod engine;
 mod google;
@@ -81,6 +82,11 @@ enum Command {
     },
     /// Check source-read and destination-write roles without changing Google data
     Doctor,
+    /// Control the persistent macOS background sync
+    Daemon {
+        #[command(subcommand)]
+        action: DaemonAction,
+    },
     /// Reconcile once; preview unless --apply is supplied
     Sync(SyncArgs),
     /// Start synchronization immediately; --dry-run previews; Ctrl-C stops
@@ -98,6 +104,16 @@ enum Command {
     },
     /// Run four-calendar synchronization locally with synthetic data (no credentials)
     Demo,
+}
+
+#[derive(Subcommand)]
+enum DaemonAction {
+    /// Start background sync and enable autostart after login
+    Start,
+    /// Stop background sync and disable autostart
+    Stop,
+    /// Show registration and running state
+    Status,
 }
 
 #[derive(Subcommand)]
@@ -324,6 +340,7 @@ fn run() -> Result<()> {
         Command::Auth { .. } => "auth",
         Command::Calendar { .. } => "calendar",
         Command::Doctor => "doctor",
+        Command::Daemon { .. } => "daemon",
         Command::Sync(_) => "sync",
         Command::Run(_) => "run",
         Command::Availability { .. } => "availability",
@@ -393,6 +410,14 @@ fn run_cli(cli: &Cli) -> Result<()> {
             return Ok(());
         }
         _ => {}
+    }
+    if let Command::Daemon { action } = command {
+        let action = match action {
+            DaemonAction::Start => "start",
+            DaemonAction::Stop => "stop",
+            DaemonAction::Status => "status",
+        };
+        return print(daemon::run(action, &path, &home()?)?, cli.json);
     }
     if let Command::Auth { action } = command {
         let config = Config::load_for_auth(&path)?;
@@ -487,6 +512,7 @@ fn run_cli(cli: &Cli) -> Result<()> {
             })?;
             while !stopped.load(Ordering::SeqCst) {
                 let started = Instant::now();
+                let config = Config::load(&path)?;
                 if let Err(error) = sync(&config, args, cli.json, args.writes(true)) {
                     logging::event(
                         "retry_scheduled",
@@ -500,7 +526,7 @@ fn run_cli(cli: &Cli) -> Result<()> {
                     std::thread::sleep(Duration::from_millis(100));
                 }
             }
-            logging::event("stopped", json!({"reason":"Ctrl-C"}))?;
+            logging::event("stopped", json!({"reason":"termination signal"}))?;
             Ok(())
         }
         Command::Availability {

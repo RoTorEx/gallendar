@@ -93,7 +93,18 @@ mode does not provide the required access. User OAuth requires
 permission for the app to act on behalf of the work account; the organization may restrict
 that too. Work-user OAuth login and source reads are verified; destination write permission is
 reported by the API and verified by eight live copy read-backs; account scheduling
-behavior remains unverified. Synchronization works only while CLI run is running, without autostart.
+behavior remains unverified. Synchronization uses the foreground run loop or the local macOS launchd login agent.
+The user authorized local background operation and reboot/login persistence; VPS work
+remains deferred. `daemon start/stop/status` controls it, with stop removing autostart.
+Both modes use poll_seconds and reread config before each pass. The supervisor
+restarts a failed worker with a 30-second throttle and permits up to 120 seconds
+for graceful shutdown; these limits avoid rapid crash loops and allow ongoing
+requests to finish. Stop waits up to 125 seconds: the exit timeout plus five seconds
+for launchd to unregister the job. Real launchd start/stop and crash recovery checks
+protect this lifecycle. Interrupted writes reconcile on the next start. A per-config
+lock prevents concurrent foreground/daemon synchronization. The agent starts at
+login, not before login, and cannot synchronize during sleep. Private operation
+logs remain in CLI home; launchd stdout/stderr logs are private too.
 
 Sharing must be verified for reading Aveni and Thira and writing own copies to Innowise. If organization
 policy forbids the required access, that is a separate blocker for the specific
@@ -205,7 +216,7 @@ identities account for the series and the occurrence's original start.
 - poll_seconds: positive integer seconds between pass starts; the template and current
   config use 600 seconds (10 minutes). There is no additional product maximum.
   The first pass starts immediately. If a pass takes longer than the interval, the
-  next one starts after it completes. Config changes take effect after restarting run.
+  next one starts after it completes. Config changes take effect before the next pass; an interval edit does not shorten an existing wait.
   Real synchronization delay includes waiting for the next pass and its duration;
   failures can increase it further.
 - One writer on one host per namespace/config. A local lock

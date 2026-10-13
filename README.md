@@ -45,7 +45,7 @@ separate Google free/busy reads and a colleague's scheduling view.
 ```toml
 # Root section: omit mirror_calendar_name for explicit destinations.
 horizon_days = 5 # Rolling window; configurable from 1 to 30 days.
-poll_seconds = 600 # Every 10 minutes; restart run after changing it.
+poll_seconds = 600 # Every 10 minutes; changes load before the next pass.
 
 [[accounts]]
 name = "innowise"
@@ -95,6 +95,42 @@ needed when the destination already has calendar event write permission.
 destination. `source_busy` remains the configured source diagnostic, and `clone_busy`
 reports the destination. These API diagnostics do not replace an observer's real
 Find a time check.
+
+### Local macOS daemon
+
+```bash
+gallendar daemon start
+gallendar daemon status
+gallendar daemon stop
+```
+
+`start` registers a per-user launchd agent, begins applied synchronization immediately
+and enables autostart at the next macOS login, including after a reboot. Closing the
+terminal does not stop it. Repeated start with the same config does not spawn another
+worker; another config or an active foreground run requires stopping that worker first.
+`stop` unloads the job and removes its autostart plist. Repeated stop is harmless.
+`status` distinguishes autostart enabled, job loaded and actual running PID; registration
+is not proof that Google synchronization succeeded. Review the private daily JSONL logs.
+
+The worker runs the installed `~/.x-cli-gallendar/bin/gallendar`, with an absolute config
+path. `--config PATH daemon start` selects a different config. `daemon status/stop` work
+without reading a valid config. Install the CLI before starting its daemon.
+The same run loop uses `poll_seconds` (currently 600 seconds), starts immediately and
+rereads configuration before each pass. Edits take effect at the next pass; an edited
+interval cannot shorten an already-running wait. Invalid config stops the worker before
+further writes; launchd retries it. Source, destination and logging protections are shared
+with foreground synchronization. Background errors also go to private
+`logs/daemon.stderr.log`; console output goes to `logs/daemon.stdout.log`.
+
+The agent plist is `~/Library/LaunchAgents/com.rotorex.gallendar.plist`, mode 0600.
+launchd restarts a failed worker with a 30-second throttle, preventing crash loops;
+SIGTERM permits graceful shutdown, with a 120-second launchd exit timeout, after which
+an interrupted pass is reconciled on the next start. `stop` waits up to 125 seconds
+(the exit timeout plus five seconds for launchd to unregister the job). These are supervisor timings,
+not the synchronization interval. No root service or VPS deployment is involved.
+This is a login agent: it does not run before login or while the Mac is asleep.
+Changing an installed binary does not replace an already-running process; use stop/start
+when upgrading a running daemon. Do not start a separate foreground run alongside it.
 
 ### Hide mirrored copies in Dato
 
@@ -310,7 +346,7 @@ response determine whether the event appears and blocks their calendar:
 Guests see the configured mirrored title and interval; no Google Meet link is added.
 
 After editing the TOML, review `gallendar sync --dry-run`, then use the existing applied-sync
-command after the availability check. Restart an already running `gallendar run` to load changes.
+command after the availability check. A running worker loads changes before its next pass.
 
 ## Reference Google guide for the earlier experiment
 
@@ -545,9 +581,8 @@ After that, run in the terminal:
 gallendar run
 ```
 
-The process works while it is open and running; Ctrl-C stops it. For background
-operation after closing the terminal, a separate launch setup on the Mac
-or a VPS will be needed — a local foreground run does not provide this by itself.
+The foreground process works while it is open and running; Ctrl-C stops it.
+Use `gallendar daemon start` for local background operation and autostart after login.
 
 The availability diagnostic command requires --account NAME and --start/--end
 in RFC3339 with an explicit UTC offset. For user times, use
@@ -604,8 +639,9 @@ are deleted on a successful pass. Set `horizon_days` to an integer from 1 to 30;
 the template starts with 7 days. Values outside that range are rejected before Google access.
 `poll_seconds` sets a positive integer interval between pass starts; the template uses
 600 seconds (10 minutes). The first pass starts immediately. If a pass takes longer
-than the interval, the next starts after it completes. Stop and restart `gallendar run`
-after changing the config. A source change can wait up to the configured interval
+than the interval, the next starts after it completes. Configuration is reread before
+each pass; changing the interval does not shorten an existing wait. A source change
+can wait up to the configured interval
 plus pass duration under normal operation; real delay remains to be measured.
 
 ## Local logs

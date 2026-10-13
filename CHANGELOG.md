@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+- Added local macOS `daemon start/stop/status` using a persistent login LaunchAgent,
+  the installed binary and an absolute config path. Start is idempotent; stop removes
+  autostart. launchd supervises crashes while the existing config lock prevents overlap.
+- Periodic runs now reload config before each pass and handle SIGTERM gracefully.
+  Daemon timing uses poll_seconds; private launchd output logs accompany daily JSONL logs.
+
 ## [0.2.1] - 2026-10-13
 
 - Added destination `retired_targets` for recoverable migration from secondary

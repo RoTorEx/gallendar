@@ -15,7 +15,7 @@ auto_update = true
 # Explicit operator choices.
 # Rolling window from now, configurable from 1 to 30 days.
 horizon_days = 7
-# Seconds between pass starts; 600 seconds = 10 minutes. Restart run after editing.
+# Seconds between pass starts; 600 seconds = 10 minutes. Changes load before the next pass.
 poll_seconds = 600
 # "out_of_office_only": skip other all-day events.
 # "busy": include all-day Busy events, excluding birthday and workingLocation types.

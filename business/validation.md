@@ -97,6 +97,25 @@ ten-minute polling, original titles, project prefixes and the existing route gue
 No live event writes were performed. Primary live writes, observer busy visibility,
 Dato filtering and new colleague invitation acceptance remain pending.
 
+## Local daemon validation
+
+On 2026-10-13, the required checks passed with 64 Rust tests. The locally installed
+Apple Silicon binary was exercised through the real user launchd service using
+isolated configs with deliberately missing service credentials, so no Google reads
+or writes were possible. Start registered the installed binary and explicit config;
+repeated start kept the same PID, and a concurrent foreground run was rejected.
+Editing the polling interval was observed in the next retry record. Killing the
+worker caused launchd to restart it after its throttle. Start/stop cycles verified
+private, valid plist files, paths containing spaces and XML metacharacters, graceful
+shutdown, job removal and removal of login autostart. Stop also worked with a
+missing config, and repeated stop was harmless. Test agents and temporary configs
+were removed; private runtime journals and supervisor logs remain in CLI home.
+
+The real account config was preserved byte-for-byte. The production daemon was
+left disabled for the user's manual start. Login persistence is configured through
+RunAtLoad in the per-user LaunchAgents directory; an actual machine reboot was not
+performed. Google synchronization and observer acceptance remain separate checks.
+
 ## Preparation and sequence
 
 1. Establish the exact Calendar IDs of the two sources and the Innowise destination.
