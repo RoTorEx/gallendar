@@ -34,8 +34,8 @@ Builds for Intel Mac and Linux are deferred until separately agreed.
 - The service reads sources and manages only the Busy copies it created.
 - A source calendar contains the original events of one account.
 - A copy represents a busy interval with a title according to the route mode.
-- The copies calendar is the selected Innowise destination; a secondary calendar
-  is allowed only after verifying the account's real availability.
+- The copies calendar is the selected Innowise secondary destination. Real account
+  availability is a separate product check, not a launch prerequisite.
 
 ## Behavior
 

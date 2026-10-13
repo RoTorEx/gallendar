@@ -58,6 +58,26 @@ Ctrl-C shutdown. Required checks passed with 57 tests, covering plain-run defaul
 daily/private/concurrent logging and stop-before-write when audit storage fails.
 The sole Apple Silicon archive passed the package/install preflight.
 
+Release v0.2.0 was pushed and its tagged GitHub workflow completed successfully,
+including 57 tests, Apple Silicon packaging, smoke installation and publication.
+Published assets are the macOS aarch64 archive, its SHA-256 checksum and installer;
+there are no Intel or Linux binary assets. The previous home binary was removed,
+then the GitHub archive was downloaded, checksum-verified and installed. The result
+reports v0.2.0 and is an arm64 Mach-O executable. Config and credentials were
+preserved byte-for-byte during replacement.
+
+Checks on that installed artifact passed: no-argument help, help/version forms,
+home/config and JSON forms, setup and aliases, editor handoff, offline demo,
+auth status, doctor, idempotent named-calendar ensure, default one-shot preview,
+detailed preview, explicit update reporting already up to date, and periodic preview
+with graceful Ctrl-C shutdown. Plain run selects writes without acknowledgement
+flags; this was verified with a valid isolated config and a deliberately missing
+service key, producing logged failure/retry/shutdown without Google access.
+The real periodic preview reported create=5, unchanged=8, update=0, delete=0.
+No live apply was performed in these release checks: the user retains the manual
+launch. The prepared config uses a rolling five-day window and ten-minute interval.
+All validation processes were stopped; the private runtime journals are retained.
+
 **Acceptance remains incomplete.** A colleague's real Find a time view, booking
 aggregation, invitation acceptance, Dato hiding, live movement/cancellation
 and observed synchronization delay have not been checked. These results establish

@@ -43,7 +43,7 @@ such as Dato:
 ```toml
 # Root section, before [oauth], [[accounts]], or [[routes]]:
 mirror_calendar_name = "Gallendar"
-horizon_days = 2 # Current live trial; configurable from 1 to 30.
+horizon_days = 5 # Current prepared work setup; configurable from 1 to 30.
 poll_seconds = 600 # Every 10 minutes; restart run after changing it.
 
 # In the innowise account, omit target or use target = "".
