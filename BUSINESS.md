@@ -49,8 +49,10 @@ Moving and changing duration update the copy; cancellation and deletion remove i
 Repeated passes do not create duplicates. Each route selects a mode:
 `mode = "masked"` uses `title` from TOML (default `Busy`),
 `mode = "original"` keeps only the source event's title, including an empty one.
-With original, the title field is not used. Both current work routes now use original
-mode at the user's request, including invitations for the Aveni route. Renaming the source or changing the
+With original, the title field is not used. The current work routes use masked
+mode with `title = "Busy"` and their existing source prefixes. This keeps source
+meeting titles out of destination copies, including invitations for the Aveni
+route. Renaming the source or changing the
 mode updates the existing copy without creating a new one. Masked does not react
 to renaming the source. The new template selects masked with title = "Busy". Each route supports an optional
 `prefix`, empty by default, prepended literally to either title mode. The operator
@@ -144,8 +146,11 @@ architecture is built in advance.
 - The source title is copied only with explicit mode = "original".
   With masked, only the configured title is copied. Source descriptions, locations, attendees,
   meeting links, and other context are not copied in any mode.
-- Copies stay opaque. Masked copies remain private; original-title copies use default
+- Copies stay opaque and block availability. Masked copies remain private; original-title copies use default
   event visibility to follow the destination calendar's existing sharing permissions.
+  Private copies show only busy time to calendar readers without private-event
+  detail access; invited guests can still see the masked title. Google
+  `transparency = "transparent"` means Free and is not a title-visibility setting.
   They do not become public or alter calendar ACLs. Existing private copies in original
   mode are updated in place; missing Google default visibility is treated as default
   to avoid repeated writes. Visibility, titles, times and route guests are reconciled
@@ -168,8 +173,9 @@ The current work setup uses the explicit Innowise primary Calendar ID with no gl
 `mirror_calendar_name`. Google does not automatically aggregate secondary-calendar
 busy intervals when a colleague checks the primary account. On 2026-10-13, direct
 free/busy comparisons and the user's colleague screenshot confirmed this failure.
-The accepted change is primary destination copies with full original titles and
-route prefixes; Dato can exclude these titles while showing source originals.
+The accepted destination remains the Innowise primary. Current copies use masked
+`Busy` titles with route prefixes; Dato can exclude these titles while showing
+source originals. Earlier primary copies used full original titles.
 Dato's installed 5.8.2 artifact confirms starts-with title matching, but actual
 filtering still requires a user-side check. Other clients need their own display rules.
 
@@ -191,8 +197,8 @@ The user explicitly removed the availability-acknowledgement launch requirement.
 `gallendar run` starts applied synchronization without additional flags;
 `run --dry-run` previews. One-shot sync remains read-only unless `--apply` is supplied.
 The user confirmed primary destination availability with colleagues after migration;
-the secondary design has a confirmed negative result. Title visibility after the fix
-still needs a fresh colleague-side observation.
+the secondary design has a confirmed negative result. The masked title and busy
+time still need a fresh colleague-side observation.
 Checking real scheduling scenarios remains useful: the presence of a Busy event
 or a successful API request does not prove the account is unavailable. A failing
 availability scenario calls for an explicit destination decision; the CLI never

@@ -29,7 +29,10 @@ title = "Busy"
 `title` is ignored in this mode. Source descriptions, attendees, locations, and links
 are not copied. Original-title copies use Google visibility = default, so the
 calendar's existing sharing rules determine who sees the title. Masked copies
-remain private. Calendar access limited to free/busy still hides titles. Changing the mode or title updates
+use Google visibility = private and remain Busy (`transparency = opaque`).
+Calendar readers without private-event detail access see only busy time; invited
+guests can see the configured masked title. `transparent` is Google's Free state
+and would stop these copies from blocking time. Changing the mode or title updates
 existing copies on the next pass, including visibility changes. Without mode/title, masked/Busy is used.
 
 Each route also accepts `prefix`, empty by default. It is prepended literally in
@@ -57,8 +60,9 @@ target = "you@your-work-domain.example" # Explicit primary Calendar ID.
 ```
 
 Keep the Aveni and Thira accounts as sources only, and both routes into Innowise.
-Use `mode = "original"` with `prefix = "[Aveni] "` or `prefix = "[Thira] "`
-for the full meeting title and a recognizable source label. Configured colleagues
+The current work routes use `mode = "masked"`, `title = "Busy"` and the
+prefixes `[Aveni] ` and `[Thira] `. This shows a source label without copying
+the source meeting title. Configured colleagues
 are invited only to destination copies; no source guests or events are changed.
 The primary destination is the organizer. Configured account addresses remain
 excluded from route attendees to prevent invitation feedback loops.

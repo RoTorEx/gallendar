@@ -158,6 +158,17 @@ and one-shot commands from daemon applied-pass health. Apple Silicon packaging a
 isolated installation passed. Current user-side checks remain in TASK.md; a new
 colleague screenshot is needed to establish title rendering after the repair.
 
+## Masked title switch
+
+On 2026-10-14, both active routes were changed from original to masked mode with
+`title = "Busy"`, retaining their `[Aveni] ` and `[Thira] ` prefixes, the Innowise
+primary destination, configured guests, 14-day window and 30-minute interval.
+The preflight plan had update=36, create=0 and delete=0, with only the two
+configured titles and private visibility. All 36 updates passed Google read-back.
+A subsequent preview had unchanged=36 and no pending mutations. Source events
+were not modified. An observer-side check of the masked titles and busy intervals
+remains in TASK.md; API read-back alone does not establish that view.
+
 ## Preparation and sequence
 
 1. Establish the exact Calendar IDs of the two sources and the Innowise destination.
@@ -243,4 +254,4 @@ declined invitations, the agreed all-day event rules, changing
 and cancelling one recurrence, changing the series, overlapping events, a repeated
 pass, a restart, and source unavailability. Measure delay from the source change
 to the observed destination result against the configured interval (currently
-ten minutes) plus pass duration.
+30 minutes on clock boundaries) plus pass duration.

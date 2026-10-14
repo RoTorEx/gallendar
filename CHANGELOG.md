@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- Switch the current Aveni and Thira routes to masked, private Busy copies with
+  their existing source prefixes; destination copies no longer contain source
+  meeting titles and continue to block time.
+
 - Align periodic synchronization to clock boundaries after the immediate first pass;
   the new 30-minute template runs at :00 and :30 and skips missed boundaries.
 - Set the current work synchronization window to 14 days and its interval to
