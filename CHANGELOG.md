@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-10-14
+
 - Add explicit `visible` and `hidden` route modes. Visible copies publish source
   titles to calendar readers; hidden copies use `hidden_title` and private
   visibility. Both remain Busy. Legacy route settings keep their previous
