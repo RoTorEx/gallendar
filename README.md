@@ -1,7 +1,8 @@
 # gallendar
 
 A Rust CLI that mirrors busy time **Aveni & Thira → Innowise**.
-Originals stay in the two sources; Innowise receives busy copies with a configured title.
+Originals stay in the two sources; Innowise receives Busy copies with a title
+selected by each route's visibility mode.
 Moves and deletions are reflected in the copies; nothing is written back.
 
 Routes are defined in `~/.x-cli-gallendar/config.toml`. Run `gallendar setup`
@@ -14,26 +15,30 @@ The exact IDs, access, and destination type still have to be configured and veri
 [[routes]]
 from = "aveni"
 to = "innowise"
-mode = "masked"
-title = "Busy"
+mode = "visible"
+hidden_title = "Busy"
+prefix = "[Aveni] "
 
 [[routes]]
 from = "thira"
 to = "innowise"
-mode = "masked"
-title = "Busy"
+mode = "visible"
+hidden_title = "Busy"
+prefix = "[Thira] "
 ```
 
-`mode = "masked"` displays the `title` value, for example `Busy`, `Unavailable`, or
-`Aveni — busy`. Titles can contain any Unicode text. `mode = "original"` keeps the source meeting's title;
-`title` is ignored in this mode. Source descriptions, attendees, locations, and links
-are not copied. Original-title copies use Google visibility = default, so the
-calendar's existing sharing rules determine who sees the title. Masked copies
-use Google visibility = private and remain Busy (`transparency = opaque`).
-Calendar readers without private-event detail access see only busy time; invited
-guests can see the configured masked title. `transparent` is Google's Free state
-and would stop these copies from blocking time. Changing the mode or title updates
-existing copies on the next pass, including visibility changes. Without mode/title, masked/Busy is used.
+`mode = "visible"` copies the source meeting title and sets Google visibility to
+`public`, so anyone who can view the Innowise calendar can see that title, even
+with free/busy-only access. `mode = "hidden"` uses `hidden_title` (default `Busy`)
+instead and sets visibility to `private`. Invited guests can still see the hidden
+title. Both modes keep `transparency = opaque` and block time; Google's
+`transparent` means Free and would defeat the availability goal. Source
+descriptions, attendees, locations and links are never copied. Changing mode or
+`hidden_title` updates existing future copies within the configured window at the
+next pass, preserving their IDs and guest responses. Past copies remain untouched.
+Old configs using `masked` or `title` still load with the same behavior.
+Legacy `original` also keeps its old Google `default` visibility until the route
+is explicitly changed to `visible`.
 
 Each route also accepts `prefix`, empty by default. It is prepended literally in
 both modes: `prefix = "[Aveni] "` with an original title `Standup` displays
@@ -60,9 +65,9 @@ target = "you@your-work-domain.example" # Explicit primary Calendar ID.
 ```
 
 Keep the Aveni and Thira accounts as sources only, and both routes into Innowise.
-The current work routes use `mode = "masked"`, `title = "Busy"` and the
-prefixes `[Aveni] ` and `[Thira] `. This shows a source label without copying
-the source meeting title. Configured colleagues
+The current work routes use `mode = "visible"` with the prefixes `[Aveni] ` and
+`[Thira] `. The retained `hidden_title = "Busy"` applies if a route switches to
+hidden mode. Configured colleagues
 are invited only to destination copies; no source guests or events are changed.
 The primary destination is the organizer. Configured account addresses remain
 excluded from route attendees to prevent invitation feedback loops.
@@ -75,8 +80,8 @@ primary Calendar ID, and put the old secondary Calendar ID in that destination's
 
 Every pass reads both sources, the active destination and all retired destinations
 before writing. The CLI creates/updates and verifies active copies before deleting
-old copies. Cleanup requires ownership and removes only events in this instance's
-namespace, including expired copies; unrelated events and the calendar itself remain.
+old copies. Cleanup requires ownership and removes only future events in this
+instance's namespace; past copies, unrelated events and the calendar itself remain.
 Retired calendars permit deletion only, never creation or updates. Source calendars,
 account primary IDs, active destinations and duplicate cleanup IDs are rejected.
 Interrupted passes reconcile without duplicating verified copies. Old guest invitations
@@ -184,8 +189,8 @@ cannot be combined with `retired_targets`.
 read; copies are managed only in their destinations. An empty route list,
 unknown names, duplicates, and self-routes are rejected. Without `routes`, old
 configs keep the previous "all to all" behavior; for the current scope, define
-both routes explicitly. If a route is removed, its copies are deleted on the next
-successful pass as long as the destination remains in another route. If a destination
+both routes explicitly. If a route is removed, its future copies are deleted on
+the next successful pass as long as the destination remains in another route. If a destination
 is excluded entirely, it is no longer read and its old copies remain;
 plan their cleanup separately. Keep the namespace stable.
 
@@ -345,8 +350,7 @@ Optional colleagues are configured independently for each route:
 [[routes]]
 from = "aveni"
 to = "innowise"
-mode = "masked"
-title = "Busy"
+mode = "visible"
 attendees = ["colleague@example.com", "another@example.com"]
 ```
 
@@ -363,7 +367,7 @@ Plain email addresses are required; duplicates and configured account addresses 
 
 On the next applied pass, new colleagues are invited to every copy in the current window,
 including existing copies. Removing an email removes that guest. Source moves, cancellations,
-and deletion of copies outside the window send updates or cancellations to guests. Google
+and deletion of future copies beyond the window send updates or cancellations to guests. Google
 requests use `sendUpdates=all` whenever guests are involved; without guests they keep `none`.
 Unchanged copies send no repeated invitations. Existing RSVP values are preserved during
 updates, and a decline is not forcibly accepted. Google invitation settings and the colleague's
@@ -660,8 +664,9 @@ copies are deleted. Run one instance on one host with one config:
 a file lock prevents parallel runs of this config; there is no distributed
 lock between VPSs.
 
-The protected window runs from the current moment `horizon_days` ahead. Copies outside it
-are deleted on a successful pass. Set `horizon_days` to an integer from 1 to 30;
+The protected window runs from the current moment `horizon_days` ahead. Past
+copies are left unchanged. Future managed copies beyond the window are deleted
+on a successful pass. Set `horizon_days` to an integer from 1 to 30;
 the template starts with 14 days. Values outside that range are rejected before Google access.
 `poll_seconds` sets a positive integer interval aligned to UTC clock boundaries;
 the template uses 1800 seconds, so passes start at :00 and :30 in Warsaw as well.

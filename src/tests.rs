@@ -314,16 +314,16 @@ fn mirror_fixture() -> (Config, demo::Memory) {
         config::Route {
             from: "account-0".into(),
             to: "account-2".into(),
-            mode: config::MirrorMode::Masked,
-            title: "Aveni Busy".into(),
+            mode: config::MirrorMode::Hidden,
+            hidden_title: "Aveni Busy".into(),
             prefix: String::new(),
             attendees: Vec::new(),
         },
         config::Route {
             from: "account-1".into(),
             to: "account-2".into(),
-            mode: config::MirrorMode::Original,
-            title: "Busy".into(),
+            mode: config::MirrorMode::Visible,
+            hidden_title: "Busy".into(),
             prefix: String::new(),
             attendees: Vec::new(),
         },
@@ -370,8 +370,8 @@ fn directed_mirror_titles_moves_deletes_and_mode_changes() {
     let renamed = engine::plan(&mut api, &config, &window).unwrap();
     assert_eq!(renamed.counts.update, 1);
     engine::apply(&mut api, &renamed).unwrap();
-    config.routes.as_mut().unwrap()[1].mode = config::MirrorMode::Masked;
-    config.routes.as_mut().unwrap()[1].title = "Unavailable".into();
+    config.routes.as_mut().unwrap()[1].mode = config::MirrorMode::Hidden;
+    config.routes.as_mut().unwrap()[1].hidden_title = "Unavailable".into();
     let masked = engine::plan(&mut api, &config, &window).unwrap();
     assert_eq!(masked.counts.update, 1);
     engine::apply(&mut api, &masked).unwrap();
@@ -416,13 +416,43 @@ fn route_validation_and_new_toml_template() {
             1 => routes[0].to = routes[0].from.clone(),
             2 => routes.push(routes[0].clone()),
             3 => routes[0].to = "account-1".into(), // no target calendar
-            4 => routes[0].title = "  ".into(),
+            4 => routes[0].hidden_title = "  ".into(),
             _ => routes.clear(),
         }
         assert!(invalid.validate().is_err());
     }
-    let bad_mode = filled.replace("mode = \"masked\"", "mode = \"typo\"");
+    let bad_mode = filled.replace("mode = \"hidden\"", "mode = \"typo\"");
     assert!(toml::from_str::<Config>(&bad_mode).is_err());
+    let legacy = filled
+        .replace("mode = \"hidden\"", "mode = \"masked\"")
+        .replace("hidden_title = \"Busy\"", "title = \"Busy\"");
+    let legacy: Config = toml::from_str(&legacy).unwrap();
+    legacy.validate().unwrap();
+    assert!(
+        legacy
+            .routes()
+            .iter()
+            .all(|route| matches!(route.mode, config::MirrorMode::Hidden))
+    );
+    let old_original = filled.replace("mode = \"hidden\"", "mode = \"original\"");
+    let parsed: Config = toml::from_str(&old_original).unwrap();
+    assert!(
+        parsed
+            .routes()
+            .iter()
+            .all(|route| matches!(route.mode, config::MirrorMode::LegacyOriginal))
+    );
+    let (mut legacy_config, mut legacy_api) = mirror_fixture();
+    legacy_config.routes.as_mut().unwrap()[0].mode = config::MirrorMode::LegacyOriginal;
+    let plan = engine::plan(
+        &mut legacy_api,
+        &legacy_config,
+        &legacy_config.window(Utc::now()),
+    )
+    .unwrap();
+    assert!(plan.actions.iter().any(|action| matches!(action,
+        engine::Action::Create { busy, .. } if busy.visibility == "default"
+    )));
     // Removing one route cleans up only that source's copies in the retained target.
     let (mut config, mut api) = mirror_fixture();
     let window = config.window(Utc::now());
@@ -517,7 +547,7 @@ fn route_prefixes_update_existing_copies_without_changing_sources_or_guest_respo
             .unchanged,
         2
     );
-    config.routes.as_mut().unwrap()[0].mode = config::MirrorMode::Original;
+    config.routes.as_mut().unwrap()[0].mode = config::MirrorMode::Visible;
     config.routes.as_mut().unwrap()[0].prefix = "Project / ".into();
     config.routes.as_mut().unwrap()[1].prefix.clear();
     let changed = engine::plan(&mut api, &config, &window).unwrap();
@@ -817,8 +847,8 @@ fn named_calendar_rejects_reverse_routes_into_source_accounts() {
     config.routes.as_mut().unwrap().push(config::Route {
         from: "account-2".into(),
         to: "account-0".into(),
-        mode: config::MirrorMode::Original,
-        title: "Busy".into(),
+        mode: config::MirrorMode::Visible,
+        hidden_title: "Busy".into(),
         prefix: String::new(),
         attendees: vec![],
     });
@@ -859,7 +889,7 @@ fn every_reconciliation_write_targets_only_the_destination_and_preserves_origina
     }
     let (mut config, mut memory) = mirror_fixture();
     config.auth = config::AuthMode::Oauth;
-    config.routes.as_mut().unwrap()[0].mode = config::MirrorMode::Original;
+    config.routes.as_mut().unwrap()[0].mode = config::MirrorMode::Visible;
     config.routes.as_mut().unwrap()[0].attendees = vec!["colleague@example.invalid".into()];
     config.validate().unwrap();
     memory.calendars.get_mut("source-0").unwrap()[0]
@@ -970,6 +1000,34 @@ fn retarget_migration_fills_primary_before_cleanup_and_preserves_foreign_events(
 }
 
 #[test]
+fn retired_calendar_cleanup_keeps_past_managed_copies() {
+    let (mut config, mut api) = mirror_fixture();
+    let window = config.window(Utc::now());
+    let initial = engine::plan(&mut api, &config, &window).unwrap();
+    engine::apply(&mut api, &initial).unwrap();
+    let old = config.accounts[2].target.clone();
+    let past = api
+        .calendars
+        .get_mut(&old)
+        .unwrap()
+        .iter_mut()
+        .next()
+        .unwrap();
+    let past_id = past.id.clone();
+    past.start.date_time = Some((window.start - Duration::days(2)).to_rfc3339());
+    past.end.date_time = Some((window.start - Duration::days(1)).to_rfc3339());
+    config.accounts[2].target = config.accounts[2].owner_email.clone();
+    config.accounts[2].retired_targets = vec![old.clone()];
+    api.calendars
+        .insert(config.accounts[2].target.clone(), Vec::new());
+    let migration = engine::plan(&mut api, &config, &window).unwrap();
+    assert_eq!(migration.counts.delete, 1);
+    engine::apply(&mut api, &migration).unwrap();
+    assert_eq!(api.calendars[&old].len(), 1);
+    assert_eq!(api.calendars[&old][0].id, past_id);
+}
+
+#[test]
 fn failed_retired_calendar_read_prevents_all_mutations() {
     let (mut config, mut api) = mirror_fixture();
     config.accounts[2].retired_targets = vec!["old-secondary".into()];
@@ -994,7 +1052,7 @@ fn migration_rejects_source_primary_active_and_duplicate_cleanup_ids() {
 }
 
 #[test]
-fn original_titles_repair_private_copies_and_follow_changes_with_stable_ids() {
+fn visible_titles_repair_private_copies_and_follow_changes_with_stable_ids() {
     let (mut config, mut api) = mirror_fixture();
     config.horizon_days = 5;
     let window = config.window(Utc::now());
@@ -1007,7 +1065,7 @@ fn original_titles_repair_private_copies_and_follow_changes_with_stable_ids() {
         .find(|e| e.summary.starts_with("[Thira]"))
         .unwrap()
         .clone();
-    assert_eq!(old.visibility, "default");
+    assert_eq!(old.visibility, "public");
     let source_before = serde_json::to_value(&api.calendars["source-1"]).unwrap();
     api.calendars
         .get_mut("clone-2")
@@ -1024,13 +1082,13 @@ fn original_titles_repair_private_copies_and_follow_changes_with_stable_ids() {
         .iter()
         .find(|e| e.id == old.id)
         .unwrap();
-    assert_eq!(saved.visibility, "default");
+    assert_eq!(saved.visibility, "public");
     assert_eq!(saved.summary, old.summary);
     assert_eq!(
         serde_json::to_value(&api.calendars["source-1"]).unwrap(),
         source_before
     );
-    // Google may omit default visibility; that must not generate repeated writes.
+    // Missing visibility means Google's default, which is not the public mode.
     api.calendars
         .get_mut("clone-2")
         .unwrap()
@@ -1039,12 +1097,9 @@ fn original_titles_repair_private_copies_and_follow_changes_with_stable_ids() {
         .unwrap()
         .visibility
         .clear();
-    assert!(
-        engine::plan(&mut api, &config, &window)
-            .unwrap()
-            .actions
-            .is_empty()
-    );
+    let repair = engine::plan(&mut api, &config, &window).unwrap();
+    assert_eq!(repair.counts.update, 1);
+    engine::apply(&mut api, &repair).unwrap();
     let source = &mut api.calendars.get_mut("source-1").unwrap()[0];
     source.summary = "Renamed source".into();
     source.start.date_time = Some((Utc::now() + Duration::days(3)).to_rfc3339());
@@ -1057,7 +1112,7 @@ fn original_titles_repair_private_copies_and_follow_changes_with_stable_ids() {
         .find(|e| e.id == old.id)
         .unwrap();
     assert_eq!(saved.summary, "[Thira] Renamed source");
-    assert_eq!(saved.visibility, "default");
+    assert_eq!(saved.visibility, "public");
     assert!(saved.owned(&namespace));
     assert!(
         engine::plan(&mut api, &config, &window)
@@ -1065,7 +1120,8 @@ fn original_titles_repair_private_copies_and_follow_changes_with_stable_ids() {
             .actions
             .is_empty()
     );
-    config.routes.as_mut().unwrap()[1].mode = config::MirrorMode::Masked;
+    config.routes.as_mut().unwrap()[1].mode = config::MirrorMode::Hidden;
+    config.routes.as_mut().unwrap()[1].hidden_title = "Unavailable".into();
     let masked = engine::plan(&mut api, &config, &window).unwrap();
     assert_eq!(masked.counts.update, 1);
     engine::apply(&mut api, &masked).unwrap();
@@ -1074,5 +1130,50 @@ fn original_titles_repair_private_copies_and_follow_changes_with_stable_ids() {
         .find(|e| e.id == old.id)
         .unwrap();
     assert_eq!(saved.visibility, "private");
-    assert_eq!(saved.summary, "[Thira] Busy");
+    assert_eq!(saved.summary, "[Thira] Unavailable");
+    config.routes.as_mut().unwrap()[1].mode = config::MirrorMode::Visible;
+    let visible = engine::plan(&mut api, &config, &window).unwrap();
+    assert_eq!(visible.counts.update, 1);
+    engine::apply(&mut api, &visible).unwrap();
+    let saved = api.calendars["clone-2"]
+        .iter()
+        .find(|e| e.id == old.id)
+        .unwrap();
+    assert_eq!(saved.visibility, "public");
+    assert_eq!(saved.summary, "[Thira] Renamed source");
+}
+
+#[test]
+fn route_mode_change_updates_future_copies_without_touching_past_copies() {
+    let (mut config, mut api) = mirror_fixture();
+    let window = config.window(Utc::now());
+    let initial = engine::plan(&mut api, &config, &window).unwrap();
+    engine::apply(&mut api, &initial).unwrap();
+    let past = api
+        .calendars
+        .get_mut("clone-2")
+        .unwrap()
+        .iter_mut()
+        .find(|event| event.summary == "Aveni Busy")
+        .unwrap();
+    let past_id = past.id.clone();
+    past.start.date_time = Some((window.start - Duration::days(2)).to_rfc3339());
+    past.end.date_time = Some((window.start - Duration::days(1)).to_rfc3339());
+    api.calendars.get_mut("source-0").unwrap().clear();
+    config.routes.as_mut().unwrap()[1].mode = config::MirrorMode::Hidden;
+    let change = engine::plan(&mut api, &config, &window).unwrap();
+    assert_eq!(change.counts.update, 1);
+    assert_eq!(change.counts.delete, 0);
+    engine::apply(&mut api, &change).unwrap();
+    let saved = api.calendars["clone-2"]
+        .iter()
+        .find(|event| event.id == past_id)
+        .unwrap();
+    assert_eq!(saved.summary, "Aveni Busy");
+    assert_eq!(saved.visibility, "private");
+    assert!(
+        api.calendars["clone-2"]
+            .iter()
+            .any(|event| event.summary == "Busy" && event.visibility == "private")
+    );
 }

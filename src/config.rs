@@ -72,8 +72,8 @@ pub struct Route {
     pub to: String,
     #[serde(default)]
     pub mode: MirrorMode,
-    #[serde(default = "default_title")]
-    pub title: String,
+    #[serde(default = "default_title", alias = "title")]
+    pub hidden_title: String,
     #[serde(default)]
     pub prefix: String,
     #[serde(default)]
@@ -84,8 +84,11 @@ pub struct Route {
 #[serde(rename_all = "snake_case")]
 pub enum MirrorMode {
     #[default]
-    Masked,
-    Original,
+    #[serde(alias = "masked")]
+    Hidden,
+    Visible,
+    #[serde(rename = "original")]
+    LegacyOriginal,
 }
 
 fn auto_update_enabled() -> bool {
@@ -108,8 +111,8 @@ impl Config {
                         .map(move |to| Route {
                             from: from.name.clone(),
                             to: to.name.clone(),
-                            mode: MirrorMode::Masked,
-                            title: default_title(),
+                            mode: MirrorMode::Hidden,
+                            hidden_title: default_title(),
                             prefix: String::new(),
                             attendees: Vec::new(),
                         })
@@ -256,8 +259,8 @@ impl Config {
         let mut pairs = HashSet::new();
         for route in &routes {
             ensure!(
-                !matches!(route.mode, MirrorMode::Masked) || !route.title.trim().is_empty(),
-                "Masked route title must not be empty"
+                !matches!(route.mode, MirrorMode::Hidden) || !route.hidden_title.trim().is_empty(),
+                "Hidden route title must not be empty"
             );
             let from = self
                 .accounts

@@ -5,7 +5,7 @@ Queue: [TASK.md](../TASK.md).
 
 ## Current results
 
-**Primary writes and user-observed busy availability confirmed; original-title visibility repaired by API readback.** The check applies to
+**Primary writes and user-observed busy availability confirmed; current public-title visibility verified by API readback.** The check applies to
 Aveni → Innowise and Thira → Innowise; personal accounts are not involved.
 
 On 2026-10-13, by 15:49 Warsaw (CEST, UTC+02:00), the authorized two-day live
@@ -169,6 +169,23 @@ A subsequent preview had unchanged=36 and no pending mutations. Source events
 were not modified. An observer-side check of the masked titles and busy intervals
 remains in TASK.md; API read-back alone does not establish that view.
 
+## Visible route switch and past-copy retention
+
+Later on 2026-10-14, both active routes were changed to `visible`, retaining
+`hidden_title = "Busy"` for a possible future switch and keeping their existing
+prefixes, guests, 14-day window and 30-minute interval. The preview reported
+update=36, create=0 and delete=0. Applying it verified all 36 future copies by
+Google read-back with public visibility and their prefixed source titles. A
+repeated preview reported unchanged=36 and no pending mutations. The installed
+daemon restarted and completed its first applied pass without an error. This
+establishes saved event data, not how a colleague's calendar renders the titles;
+that observer check remains in TASK.md.
+
+The new reconciliation rule leaves copies whose end is at or before the window
+start untouched, including in retired calendars. Focused tests cover mode changes
+on future copies, retention of past active and retired copies, and legacy route
+settings. The real preview did not itself contain a past-copy case.
+
 ## Preparation and sequence
 
 1. Establish the exact Calendar IDs of the two sources and the Innowise destination.
@@ -239,11 +256,11 @@ or assumed results as completed.
 | # | Scenario | Expected result |
 |---|---|---|
 | 1 | Aveni meeting | Innowise is busy; the title matches the route mode |
-| 2 | Thira meeting | Innowise is busy; details stay only in the source |
+| 2 | Thira meeting | Innowise is busy; the configured mode controls which title is shown |
 | 3 | Move | Copies follow the source; the old interval is free if nothing else occupies it; no duplicates |
 | 4 | Cancellation or deletion | The corresponding copies disappear; time not occupied by other events is freed |
 | 5 | No feedback loop | A copy does not produce copies; one original produces one copy per destination |
-| 6 | Title mode and privacy | Masked shows the title from TOML; original keeps the title and its changes. Other details are not copied; changing the mode updates the copy |
+| 6 | Title mode and privacy | Visible publishes the source title; hidden shows `hidden_title` instead. Other details are not copied; changing the mode updates future copies and leaves past copies untouched |
 | 7 | Existing Innowise meetings | Preserved unchanged and do not become sources |
 | 8 | External availability | A colleague and required tools see the account as busy; failure blocks acceptance of the design |
 | 9 | Directions | Both sources block only Innowise; there are no writes to Aveni and Thira |

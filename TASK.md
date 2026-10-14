@@ -4,8 +4,8 @@ Scope: **Aveni & Thira → Innowise**. Rules: [BUSINESS.md](BUSINESS.md).
 Implementation and API validation are recorded in [business/validation.md](business/validation.md).
 
 - [ ] Have a colleague confirm that the current primary-calendar copies block
-  time and show only the configured `[Aveni] Busy` or `[Thira] Busy` title where
-  invitations or calendar sharing expose event details.
+  time and show the prefixed source title with public event visibility, including
+  a colleague whose calendar access is otherwise limited to free/busy.
 - [ ] Observe a real source move, rename, cancellation and recurrence exception for
   each route. Source edits are performed by the user; the CLI must never write sources.
 - [ ] Confirm the configured Aveni colleague's invitation acceptance and busy time,

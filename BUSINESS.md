@@ -46,16 +46,16 @@ Builds for Intel Mac and Linux are deferred until separately agreed.
 Busy time in Aveni and Thira creates one Busy copy each in Innowise.
 Innowise is not a source. The service writes nothing to Aveni and Thira.
 Moving and changing duration update the copy; cancellation and deletion remove it.
-Repeated passes do not create duplicates. Each route selects a mode:
-`mode = "masked"` uses `title` from TOML (default `Busy`),
-`mode = "original"` keeps only the source event's title, including an empty one.
-With original, the title field is not used. The current work routes use masked
-mode with `title = "Busy"` and their existing source prefixes. This keeps source
-meeting titles out of destination copies, including invitations for the Aveni
-route. Renaming the source or changing the
-mode updates the existing copy without creating a new one. Masked does not react
-to renaming the source. The new template selects masked with title = "Busy". Each route supports an optional
-`prefix`, empty by default, prepended literally to either title mode. The operator
+Repeated passes do not create duplicates. Each route selects one of two current modes:
+`mode = "visible"` publishes the source event's title, including an empty one;
+`mode = "hidden"` uses `hidden_title` from TOML (default `Busy`). Both routes
+currently use visible mode and keep their source prefixes. Changing the mode or
+hidden title updates existing future copies within the rolling window without
+creating new identities. Hidden mode does not react to source title changes.
+The template selects hidden mode with a Busy title. Legacy `masked` and `title`
+still load with hidden behavior; legacy `original` retains its earlier default
+Google visibility until explicitly switched to visible. Each route supports an optional
+`prefix`, empty by default, prepended literally in either mode. The operator
 includes the desired separator. Prefix changes update existing copies and preserve
 their identities, guest responses and source titles. Both the owner and invited
 colleagues see the prefixed title.
@@ -143,18 +143,19 @@ architecture is built in advance.
   Innowise itself; the owner does not need a separate self-invitation. The earlier
   request to keep the primary untouched was superseded by the authorized migration
   after the secondary failed availability. Source protection remains unchanged.
-- The source title is copied only with explicit mode = "original".
-  With masked, only the configured title is copied. Source descriptions, locations, attendees,
+- The source title is copied only with visible mode or legacy original mode.
+  With hidden mode, only the configured title is copied. Source descriptions, locations, attendees,
   meeting links, and other context are not copied in any mode.
-- Copies stay opaque and block availability. Masked copies remain private; original-title copies use default
-  event visibility to follow the destination calendar's existing sharing permissions.
+- Copies stay opaque and block availability. Visible copies use Google public
+  visibility, so every reader of the destination calendar, including free/busy
+  readers, can see the copied title. Hidden copies use private visibility.
+  Legacy original copies retain default event visibility.
   Private copies show only busy time to calendar readers without private-event
-  detail access; invited guests can still see the masked title. Google
+  detail access; invited guests can still see the hidden title. Google
   `transparency = "transparent"` means Free and is not a title-visibility setting.
-  They do not become public or alter calendar ACLs. Existing private copies in original
-  mode are updated in place; missing Google default visibility is treated as default
-  to avoid repeated writes. Visibility, titles, times and route guests are reconciled
-  on every successful pass within the rolling window. Source writes remain forbidden.
+  No mode changes calendar ACLs. Visibility, titles, times and route guests are
+  reconciled on every successful pass for future copies in the rolling window.
+  Past copies are preserved unchanged. Source writes remain forbidden.
 - Busy copies never become a source of new copies.
 - Original events and unrelated destination events are preserved.
 - Named-calendar mode requires source and destination account sets to be disjoint.
@@ -173,15 +174,16 @@ The current work setup uses the explicit Innowise primary Calendar ID with no gl
 `mirror_calendar_name`. Google does not automatically aggregate secondary-calendar
 busy intervals when a colleague checks the primary account. On 2026-10-13, direct
 free/busy comparisons and the user's colleague screenshot confirmed this failure.
-The accepted destination remains the Innowise primary. Current copies use masked
-`Busy` titles with route prefixes; Dato can exclude these titles while showing
-source originals. Earlier primary copies used full original titles.
+The accepted destination remains the Innowise primary. Current copies use public
+source titles with route prefixes; Dato can exclude these titles while showing
+source originals. Earlier primary copies used private masked titles.
 Dato's installed 5.8.2 artifact confirms starts-with title matching, but actual
 filtering still requires a user-side check. Other clients need their own display rules.
 
 Each destination can list old secondary IDs in `retired_targets` during migration.
 All reads must succeed before writes; active copies are verified before cleanup.
-Only owned events in the stable namespace are deleted from an owned retired calendar.
+Only future owned events in the stable namespace are deleted from an owned retired
+calendar; past copies remain untouched.
 Foreign events and calendar containers remain. Cleanup never creates or updates
 retired events and cannot target sources, configured primaries or active destinations.
 Partial passes are recoverable; cancellation/new invitations replace old guest copies,
@@ -197,7 +199,7 @@ The user explicitly removed the availability-acknowledgement launch requirement.
 `gallendar run` starts applied synchronization without additional flags;
 `run --dry-run` previews. One-shot sync remains read-only unless `--apply` is supplied.
 The user confirmed primary destination availability with colleagues after migration;
-the secondary design has a confirmed negative result. The masked title and busy
+the secondary design has a confirmed negative result. The visible title and busy
 time still need a fresh colleague-side observation.
 Checking real scheduling scenarios remains useful: the presence of a Busy event
 or a successful API request does not prove the account is unavailable. A failing
@@ -231,15 +233,15 @@ as the automatic runtime journal; historical run.log is preserved.
 
 ## Current CLI parameters
 
-The config sets the horizon explicitly: the window starts now, and copies outside the window are deleted
-after all calendars are read successfully. This is a limitation of the current CLI; the final
-product boundary for past and future remains an open task. Recurrence
+The config sets the horizon explicitly: the window starts now. Future copies
+beyond the window are deleted after all calendars are read successfully, while
+past copies are retained unchanged. Recurrence
 identities account for the series and the occurrence's original start.
 
 - horizon_days: 1 to 30 days, with 14 days in the template and current config.
   User decision: use a rolling two-week window from now and allow configuration
   up to 30 days. Invalid values are rejected before Google access. Reducing the
-  window removes managed copies outside it on the next applied pass; source events
+  window removes future managed copies beyond it on the next applied pass; source events
   are preserved. Boundary and rolling-window behavior are covered by Rust tests.
 - poll_seconds: positive integer seconds aligned to UTC epoch boundaries; the template and current
   config use 1800 seconds (30 minutes), giving :00 and :30 in Warsaw. There is no additional product maximum.

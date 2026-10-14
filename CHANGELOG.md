@@ -2,9 +2,12 @@
 
 ## [Unreleased]
 
-- Switch the current Aveni and Thira routes to masked, private Busy copies with
-  their existing source prefixes; destination copies no longer contain source
-  meeting titles and continue to block time.
+- Add explicit `visible` and `hidden` route modes. Visible copies publish source
+  titles to calendar readers; hidden copies use `hidden_title` and private
+  visibility. Both remain Busy. Legacy route settings keep their previous
+  behavior until changed explicitly.
+- Reconcile existing future copies in place when route mode changes, while
+  leaving ended copies untouched. The current work routes use visible mode.
 
 - Align periodic synchronization to clock boundaries after the immediate first pass;
   the new 30-minute template runs at :00 and :30 and skips missed boundaries.

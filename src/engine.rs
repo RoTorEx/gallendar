@@ -1,8 +1,9 @@
 use crate::{
     config::{Config, Window},
-    model::{Busy, Snapshot, digest},
+    model::{Busy, Event, Snapshot, digest},
 };
 use anyhow::{Context, Result, ensure};
+use chrono::{DateTime, Utc};
 use serde::Serialize;
 use std::collections::{BTreeMap, HashSet};
 
@@ -43,6 +44,18 @@ pub struct Plan {
     pub actions: Vec<Action>,
     pub counts: Counts,
     pub namespace: String,
+}
+
+fn is_past(event: &Event, window: &Window) -> Result<bool> {
+    let end = event
+        .end
+        .date_time
+        .as_deref()
+        .context("Managed event has no end time; no changes applied")?;
+    let end = DateTime::parse_from_rfc3339(end)
+        .context("Managed event has an invalid end time; no changes applied")?
+        .with_timezone(&Utc);
+    Ok(end <= window.start)
 }
 
 pub fn plan(api: &mut impl CalendarApi, config: &Config, window: &Window) -> Result<Plan> {
@@ -110,6 +123,9 @@ pub fn plan(api: &mut impl CalendarApi, config: &Config, window: &Window) -> Res
             );
             for event in snapshot.events {
                 if event.owned(&namespace) && event.status != "cancelled" {
+                    if is_past(&event, window)? {
+                        continue;
+                    }
                     ensure!(
                         !event.id.is_empty(),
                         "Retired target has an incomplete managed event; no changes applied"
@@ -133,13 +149,15 @@ pub fn plan(api: &mut impl CalendarApi, config: &Config, window: &Window) -> Res
                 for (key, (busy, original_title)) in events {
                     let mut copy = busy.clone();
                     let title = match route.mode {
-                        crate::config::MirrorMode::Masked => route.title.clone(),
-                        crate::config::MirrorMode::Original => original_title.clone(),
+                        crate::config::MirrorMode::Hidden => route.hidden_title.clone(),
+                        crate::config::MirrorMode::Visible
+                        | crate::config::MirrorMode::LegacyOriginal => original_title.clone(),
                     };
                     copy.summary = format!("{}{title}", route.prefix);
                     copy.visibility = match route.mode {
-                        crate::config::MirrorMode::Original => "default",
-                        crate::config::MirrorMode::Masked => "private",
+                        crate::config::MirrorMode::Visible => "public",
+                        crate::config::MirrorMode::Hidden => "private",
+                        crate::config::MirrorMode::LegacyOriginal => "default",
                     }
                     .into();
                     copy.attendees = route
@@ -163,8 +181,11 @@ pub fn plan(api: &mut impl CalendarApi, config: &Config, window: &Window) -> Res
                 !event.id.is_empty(),
                 "Target has an incomplete managed event; no changes applied"
             );
-            // Expired clones are removed as the rolling horizon advances. All reads
-            // have succeeded; events outside the selected horizon are not protected.
+            // Past copies are historical records and are never mutated by a pass.
+            if is_past(&event, window)? {
+                continue;
+            }
+            // Future copies outside the configured horizon are cleaned up.
             if let Some(busy) = event.key().and_then(|key| desired.get(key))
                 && seen.insert(busy.key.clone())
             {

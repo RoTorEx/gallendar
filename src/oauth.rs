@@ -598,8 +598,8 @@ mod tests {
         config.routes = Some(vec![crate::config::Route {
             from: "account-0".into(),
             to: "account-1".into(),
-            mode: crate::config::MirrorMode::Masked,
-            title: "Busy".into(),
+            mode: crate::config::MirrorMode::Hidden,
+            hidden_title: "Busy".into(),
             prefix: String::new(),
             attendees: vec![],
         }]);
