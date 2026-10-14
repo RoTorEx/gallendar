@@ -556,9 +556,9 @@ fn route_prefixes_update_existing_copies_without_changing_sources_or_guest_respo
 }
 
 #[test]
-fn polling_accepts_ten_minutes_and_rejects_a_zero_interval() {
+fn polling_accepts_half_hour_and_rejects_a_zero_interval() {
     let (mut config, _) = demo::fixture();
-    for seconds in [1, 60, 120, 600, 3600] {
+    for seconds in [1, 60, 120, 600, 1800, 3600] {
         config.poll_seconds = seconds;
         config.validate().unwrap();
     }
@@ -576,7 +576,7 @@ fn polling_accepts_ten_minutes_and_rejects_a_zero_interval() {
 fn horizon_accepts_one_to_thirty_days_and_starts_at_now() {
     let (mut config, _) = demo::fixture();
     let now = Utc::now();
-    for days in [1, 7, 30] {
+    for days in [1, 7, 14, 30] {
         config.horizon_days = days;
         config.validate().unwrap();
         let window = config.window(now);
@@ -762,6 +762,29 @@ fn simple_run_applies_and_explicit_dry_run_preserves_preview_mode() {
     assert!(Cli::try_parse_from(["gallendar", "run", "--apply", "--dry-run"]).is_err());
     assert!(Cli::try_parse_from(["gallendar", "run", "--availability-confirmed"]).is_err());
     assert!(Cli::try_parse_from(["gallendar", "run", "--live-trial"]).is_err());
+}
+
+#[test]
+fn periodic_passes_align_to_clock_boundaries() {
+    let at = UNIX_EPOCH
+        + std::time::Duration::from_secs(16 * 3600 + 7 * 60 + 12)
+        + std::time::Duration::from_millis(500);
+    for (seconds, expected) in [(600, 168), (900, 468), (1200, 768), (1800, 1368)] {
+        assert_eq!(
+            until_next_poll_boundary(at, seconds).unwrap(),
+            std::time::Duration::from_secs(expected) - std::time::Duration::from_millis(500)
+        );
+    }
+    let boundary = UNIX_EPOCH + std::time::Duration::from_secs(16 * 3600 + 20 * 60);
+    assert_eq!(
+        until_next_poll_boundary(boundary, 600).unwrap(),
+        std::time::Duration::from_secs(600)
+    );
+    assert_eq!(
+        until_next_poll_boundary(boundary + std::time::Duration::from_secs(61), 600).unwrap(),
+        std::time::Duration::from_secs(539)
+    );
+    assert!(until_next_poll_boundary(at, 0).is_err());
 }
 
 #[test]

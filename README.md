@@ -45,8 +45,8 @@ separate Google free/busy reads and a colleague's scheduling view.
 
 ```toml
 # Root section: omit mirror_calendar_name for explicit destinations.
-horizon_days = 5 # Rolling window; configurable from 1 to 30 days.
-poll_seconds = 600 # Every 10 minutes; changes load before the next pass.
+horizon_days = 14 # Rolling window from now; configurable from 1 to 30 days.
+poll_seconds = 1800 # Every half hour, at :00 and :30.
 
 [[accounts]]
 name = "innowise"
@@ -129,7 +129,7 @@ outcome. Timestamps in JSON retain UTC. Review the private daily JSONL logs.
 The worker runs the installed `~/.x-cli-gallendar/bin/gallendar`, with an absolute config
 path. `--config PATH daemon start` selects a different config. `daemon status/stop` work
 without reading a valid config. Install the CLI before starting its daemon.
-The same run loop uses `poll_seconds` (currently 600 seconds), starts immediately and
+The same run loop uses `poll_seconds` (currently 1800 seconds), starts immediately and
 rereads configuration before each pass. Edits take effect at the next pass; an edited
 interval cannot shorten an already-running wait. Invalid config stops the worker before
 further writes; launchd retries it. Source, destination and logging protections are shared
@@ -658,13 +658,14 @@ lock between VPSs.
 
 The protected window runs from the current moment `horizon_days` ahead. Copies outside it
 are deleted on a successful pass. Set `horizon_days` to an integer from 1 to 30;
-the template starts with 7 days. Values outside that range are rejected before Google access.
-`poll_seconds` sets a positive integer interval between pass starts; the template uses
-600 seconds (10 minutes). The first pass starts immediately. If a pass takes longer
-than the interval, the next starts after it completes. Configuration is reread before
-each pass; changing the interval does not shorten an existing wait. A source change
-can wait up to the configured interval
-plus pass duration under normal operation; real delay remains to be measured.
+the template starts with 14 days. Values outside that range are rejected before Google access.
+`poll_seconds` sets a positive integer interval aligned to UTC clock boundaries;
+the template uses 1800 seconds, so passes start at :00 and :30 in Warsaw as well.
+The first pass starts immediately. After each pass, the worker waits for the next
+boundary, skipping any missed boundaries instead of running back-to-back.
+Configuration is reread before each pass; changing the interval does not shorten
+an existing wait. A source change can wait up to the configured interval plus
+pass duration under normal operation; real delay remains to be measured.
 
 ## Local logs
 

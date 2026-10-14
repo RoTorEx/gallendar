@@ -98,7 +98,10 @@ reported by the API and verified by eight live copy read-backs; account scheduli
 behavior remains unverified. Synchronization uses the foreground run loop or the local macOS launchd login agent.
 The user authorized local background operation and reboot/login persistence; VPS work
 remains deferred. `daemon start/stop/status` controls it, with stop removing autostart.
-Both modes use poll_seconds and reread config before each pass. The supervisor
+Both modes use poll_seconds and reread config before each pass. Periodic passes
+align to wall-clock boundaries: the current 30-minute interval runs at :00 and
+:30 in Warsaw. The first pass after starting is immediate; a long pass skips
+missed boundaries. The supervisor
 restarts a failed worker with a 30-second throttle and permits up to 120 seconds
 for graceful shutdown; these limits avoid rapid crash loops and allow ongoing
 requests to finish. Stop waits up to 125 seconds: the exit timeout plus five seconds
@@ -217,7 +220,7 @@ as the automatic runtime journal; historical run.log is preserved.
 | 1 | user | Personal service, original brief | Multiple users change product boundaries; not in the MVP |
 | 3 | work accounts | User clarification: Aveni, Thira, Innowise | Two sources and one destination; both routes are checked |
 | 1 | destination per original | User clarification: Innowise only | Verify that nothing is written to Aveni and Thira |
-| 10 | minutes between pass starts by default (600 seconds) | Current user decision, superseding the ANNEX two-minute usual-delay target | Configurable positive integer seconds; zero is rejected to prevent a tight loop. Longer intervals delay updates; measure interval plus pass duration, with no guarantee under failures. Validation tests cover zero, legacy values and ten minutes |
+| 30 | minutes between scheduled passes by default (1800 seconds) | Current user decision: half-hour clock boundaries are sufficient, superseding the previous ten-minute interval | Configurable positive integer seconds; zero is rejected to prevent a tight loop. The initial pass runs immediately, and subsequent passes align to UTC epoch multiples, which are :00 and :30 in Warsaw for this interval. Longer intervals delay updates; measure interval plus pass duration, with no guarantee under failures. Tests cover zero and clock boundaries for 10, 15, 20 and 30 minutes |
 | 2 | busy-time sources | User clarification: Aveni and Thira | Check each source independently |
 
 ## Current CLI parameters
@@ -227,15 +230,15 @@ after all calendars are read successfully. This is a limitation of the current C
 product boundary for past and future remains an open task. Recurrence
 identities account for the series and the occurrence's original start.
 
-- horizon_days: 1 to 30 days, with 7 days in the template; the current prepared config uses 5 days.
-  User decision: start with one rolling week from now and allow configuration
+- horizon_days: 1 to 30 days, with 14 days in the template and current config.
+  User decision: use a rolling two-week window from now and allow configuration
   up to 30 days. Invalid values are rejected before Google access. Reducing the
   window removes managed copies outside it on the next applied pass; source events
   are preserved. Boundary and rolling-window behavior are covered by Rust tests.
-- poll_seconds: positive integer seconds between pass starts; the template and current
-  config use 600 seconds (10 minutes). There is no additional product maximum.
-  The first pass starts immediately. If a pass takes longer than the interval, the
-  next one starts after it completes. Config changes take effect before the next pass; an interval edit does not shorten an existing wait.
+- poll_seconds: positive integer seconds aligned to UTC epoch boundaries; the template and current
+  config use 1800 seconds (30 minutes), giving :00 and :30 in Warsaw. There is no additional product maximum.
+  The first pass starts immediately. If a pass crosses a boundary, the next pass starts
+  at the next future boundary. Config changes take effect before the next pass; an interval edit does not shorten an existing wait.
   Real synchronization delay includes waiting for the next pass and its duration;
   failures can increase it further.
 - One writer on one host per namespace/config. A local lock

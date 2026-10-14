@@ -14,9 +14,9 @@ namespace = "gallendar-work"
 auto_update = true
 # Explicit operator choices.
 # Rolling window from now, configurable from 1 to 30 days.
-horizon_days = 7
-# Seconds between pass starts; 600 seconds = 10 minutes. Changes load before the next pass.
-poll_seconds = 600
+horizon_days = 14
+# Align passes to clock boundaries; 1800 seconds = :00 and :30 each hour.
+poll_seconds = 1800
 # "out_of_office_only": skip other all-day events.
 # "busy": include all-day Busy events, excluding birthday and workingLocation types.
 all_day_policy = "out_of_office_only"

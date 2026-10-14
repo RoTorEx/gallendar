@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+- Align periodic synchronization to clock boundaries after the immediate first pass;
+  the new 30-minute template runs at :00 and :30 and skips missed boundaries.
+- Set the current work synchronization window to 14 days and its interval to
+  30 minutes.
+
 ## [0.2.4] - 2026-10-13
 
 - Add `gallendar status` with a readable local overview, actual running daemon

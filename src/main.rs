@@ -24,7 +24,7 @@ use std::{
         Arc,
         atomic::{AtomicBool, Ordering},
     },
-    time::{Duration, Instant},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 #[derive(Parser)]
@@ -245,6 +245,17 @@ fn lock(path: &Path) -> Result<File> {
     file.try_lock_exclusive()
         .context("Another gallendar process is using this config; stop it first")?;
     Ok(file)
+}
+
+fn until_next_poll_boundary(now: SystemTime, interval_seconds: u64) -> Result<Duration> {
+    ensure!(interval_seconds > 0, "poll_seconds must be at least 1");
+    let elapsed = now.duration_since(UNIX_EPOCH)?;
+    let period_nanos = u128::from(interval_seconds) * 1_000_000_000;
+    let remaining = period_nanos - elapsed.as_nanos() % period_nanos;
+    Ok(Duration::new(
+        (remaining / 1_000_000_000) as u64,
+        (remaining % 1_000_000_000) as u32,
+    ))
 }
 
 fn action_details(action: &engine::Action) -> Value {
@@ -521,7 +532,6 @@ fn run_cli(cli: &Cli) -> Result<()> {
                 signal.store(true, Ordering::SeqCst);
             })?;
             while !stopped.load(Ordering::SeqCst) {
-                let started = Instant::now();
                 let config = Config::load(&path)?;
                 if config.auto_update {
                     update::start_automatic();
@@ -536,9 +546,12 @@ fn run_cli(cli: &Cli) -> Result<()> {
                     )?;
                     eprintln!("gallendar: sync failed: {error:#}; will retry next pass");
                 }
-                while !stopped.load(Ordering::SeqCst)
-                    && started.elapsed() < Duration::from_secs(config.poll_seconds)
-                {
+                let now = SystemTime::now();
+                let wait = until_next_poll_boundary(now, config.poll_seconds)?;
+                let next_pass = now
+                    .checked_add(wait)
+                    .context("Next synchronization time is out of range")?;
+                while !stopped.load(Ordering::SeqCst) && SystemTime::now() < next_pass {
                     std::thread::sleep(Duration::from_millis(100));
                 }
             }
