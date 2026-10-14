@@ -83,9 +83,9 @@ pub struct Route {
 #[derive(Clone, Copy, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MirrorMode {
-    #[default]
     #[serde(alias = "masked")]
     Hidden,
+    #[default]
     Visible,
     #[serde(rename = "original")]
     LegacyOriginal,

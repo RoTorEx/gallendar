@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- Default new explicit routes to `visible` and use it in the config template.
+  Explicit routes that omitted `mode` now publish source titles; specify `hidden`
+  to keep masking. Legacy configs without routes retain hidden all-to-all behavior.
+
 ## [0.2.5] - 2026-10-14
 
 - Add explicit `visible` and `hidden` route modes. Visible copies publish source

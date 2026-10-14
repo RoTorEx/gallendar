@@ -50,10 +50,10 @@ from = "aveni"
 to = "innowise"
 # Literal text prepended in either mode; include a separator.
 prefix = ""
-# "visible" publishes the source title; "hidden" uses hidden_title instead.
+# "visible" is the default and publishes the source title; "hidden" uses hidden_title instead.
 # Both modes block time. Legacy "original" retains its former default visibility;
 # legacy "masked" and "title" still load without changing behavior.
-mode = "hidden"
+mode = "visible"
 hidden_title = "Busy"
 # Invite only these colleagues to this route's copies; requires destination OAuth.
 attendees = []
@@ -64,7 +64,7 @@ to = "innowise"
 # Literal text prepended in either mode; include a separator.
 prefix = ""
 # "visible" publishes the source title; "hidden" uses hidden_title instead.
-mode = "hidden"
+mode = "visible"
 hidden_title = "Busy"
 # Invite only these colleagues to this route's copies; requires destination OAuth.
 attendees = []

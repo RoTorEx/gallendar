@@ -29,7 +29,10 @@ prefix = "[Thira] "
 
 `mode = "visible"` copies the source meeting title and sets Google visibility to
 `public`, so anyone who can view the Innowise calendar can see that title, even
-with free/busy-only access. `mode = "hidden"` uses `hidden_title` (default `Busy`)
+with free/busy-only access. If the destination calendar is shared publicly, these
+titles may be visible outside the organization; review calendar sharing before
+using this mode. `visible` is the default for an explicit route when `mode` is
+omitted. `mode = "hidden"` uses `hidden_title` (default `Busy`)
 instead and sets visibility to `private`. Invited guests can still see the hidden
 title. Both modes keep `transparency = opaque` and block time; Google's
 `transparent` means Free and would defeat the availability goal. Source
@@ -38,7 +41,10 @@ descriptions, attendees, locations and links are never copied. Changing mode or
 next pass, preserving their IDs and guest responses. Past copies remain untouched.
 Old configs using `masked` or `title` still load with the same behavior.
 Legacy `original` also keeps its old Google `default` visibility until the route
-is explicitly changed to `visible`.
+is explicitly changed to `visible`. Existing explicit routes with no `mode` now
+switch from hidden to visible when upgraded; set `mode = "hidden"` explicitly if
+their titles must stay masked. Configs with no `[[routes]]` retain their legacy
+hidden all-to-all behavior.
 
 Each route also accepts `prefix`, empty by default. It is prepended literally in
 both modes: `prefix = "[Aveni] "` with an original title `Standup` displays

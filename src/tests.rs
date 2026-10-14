@@ -407,6 +407,28 @@ fn route_validation_and_new_toml_template() {
     template.validate().unwrap();
     assert_eq!(template.sources().len(), 2);
     assert_eq!(template.targets()[0].name, "innowise");
+    assert!(
+        template
+            .routes()
+            .iter()
+            .all(|route| matches!(route.mode, config::MirrorMode::Visible))
+    );
+    let implicit_mode = filled.replace("mode = \"visible\"\n", "");
+    let implicit_mode: Config = toml::from_str(&implicit_mode).unwrap();
+    assert!(
+        implicit_mode
+            .routes()
+            .iter()
+            .all(|route| matches!(route.mode, config::MirrorMode::Visible))
+    );
+    let mut all_to_all = template.clone();
+    all_to_all.routes = None;
+    assert!(
+        all_to_all
+            .routes()
+            .iter()
+            .all(|route| matches!(route.mode, config::MirrorMode::Hidden))
+    );
     let (config, _) = mirror_fixture();
     for case in 0..6 {
         let mut invalid = config.clone();
@@ -421,10 +443,10 @@ fn route_validation_and_new_toml_template() {
         }
         assert!(invalid.validate().is_err());
     }
-    let bad_mode = filled.replace("mode = \"hidden\"", "mode = \"typo\"");
+    let bad_mode = filled.replace("mode = \"visible\"", "mode = \"typo\"");
     assert!(toml::from_str::<Config>(&bad_mode).is_err());
     let legacy = filled
-        .replace("mode = \"hidden\"", "mode = \"masked\"")
+        .replace("mode = \"visible\"", "mode = \"masked\"")
         .replace("hidden_title = \"Busy\"", "title = \"Busy\"");
     let legacy: Config = toml::from_str(&legacy).unwrap();
     legacy.validate().unwrap();
@@ -434,7 +456,7 @@ fn route_validation_and_new_toml_template() {
             .iter()
             .all(|route| matches!(route.mode, config::MirrorMode::Hidden))
     );
-    let old_original = filled.replace("mode = \"hidden\"", "mode = \"original\"");
+    let old_original = filled.replace("mode = \"visible\"", "mode = \"original\"");
     let parsed: Config = toml::from_str(&old_original).unwrap();
     assert!(
         parsed

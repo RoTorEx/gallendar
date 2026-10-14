@@ -52,7 +52,11 @@ Repeated passes do not create duplicates. Each route selects one of two current 
 currently use visible mode and keep their source prefixes. Changing the mode or
 hidden title updates existing future copies within the rolling window without
 creating new identities. Hidden mode does not react to source title changes.
-The template selects hidden mode with a Busy title. Legacy `masked` and `title`
+The template and omitted mode on an explicit route select visible; hidden is an
+explicit choice when the source title must not be copied. Existing explicit routes
+that omitted mode change from hidden to visible on upgrade, so they must add
+`mode = "hidden"` before upgrading if masking is required. Configs with no routes
+retain legacy hidden all-to-all behavior. Legacy `masked` and `title`
 still load with hidden behavior; legacy `original` retains its earlier default
 Google visibility until explicitly switched to visible. Each route supports an optional
 `prefix`, empty by default, prepended literally in either mode. The operator
@@ -148,7 +152,8 @@ architecture is built in advance.
   meeting links, and other context are not copied in any mode.
 - Copies stay opaque and block availability. Visible copies use Google public
   visibility, so every reader of the destination calendar, including free/busy
-  readers, can see the copied title. Hidden copies use private visibility.
+  readers, can see the copied title. If the destination calendar is shared publicly,
+  the source titles may be exposed outside the organization. Hidden copies use private visibility.
   Legacy original copies retain default event visibility.
   Private copies show only busy time to calendar readers without private-event
   detail access; invited guests can still see the hidden title. Google
