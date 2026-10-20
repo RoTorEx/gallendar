@@ -4,7 +4,7 @@ use serde_json::{Value, json};
 use std::fs;
 use std::{path::Path, process::Command};
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", test))]
 const LABEL: &str = "com.rotorex.gallendar";
 
 #[cfg(any(target_os = "macos", test))]
