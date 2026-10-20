@@ -24,7 +24,8 @@ impl Health {
         let state = Self {
             schema_version: 1,
             version: env!("CARGO_PKG_VERSION").into(),
-            started_at: Utc::now(),
+            // Keep the initial grace deadline through crash loops before any success.
+            started_at: previous.as_ref().map_or_else(Utc::now, |s| s.started_at),
             poll_seconds,
             last_pass_at: previous.as_ref().and_then(|s| s.last_pass_at),
             last_success_at: previous.as_ref().and_then(|s| s.last_success_at),
@@ -85,6 +86,8 @@ mod tests {
         let root = std::env::temp_dir().join(format!("gallendar-health-{}", uuid::Uuid::new_v4()));
         let mut health = Health::start(&root, 1800).unwrap();
         assert!(health.last_success_at.is_none());
+        let restarted = Health::start(&root, 1800).unwrap();
+        assert_eq!(restarted.started_at, health.started_at);
         health.completed(&Ok(()), 1800);
         let success = health.last_success_at;
         health.completed(&Err(anyhow::anyhow!("secret diagnostic")), 900);
