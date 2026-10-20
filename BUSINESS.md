@@ -107,7 +107,7 @@ or the installed Linux systemd service.
 The user authorized local background operation and reboot/login persistence, and
 subsequently server deployment. The server uses a dedicated systemd service; the
 Mac daemon is disabled before the server becomes the sole active writer. `daemon start/stop/status` controls it, with stop removing autostart.
-Both modes use poll_seconds and reread config before each pass. Periodic passes
+All runtime modes use poll_seconds and reread config before each pass. Periodic passes
 align to wall-clock boundaries: the current 30-minute interval runs at :00 and
 :30 in Warsaw. The first pass after starting is immediate; a long pass skips
 missed boundaries. The supervisor

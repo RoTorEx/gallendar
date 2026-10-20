@@ -3,6 +3,67 @@
 Product rules: [BUSINESS.md](../BUSINESS.md).
 Queue: [TASK.md](../TASK.md).
 
+## VPS migration observed on 2026-10-20
+
+Gallendar 0.2.6 was published after both macOS Apple Silicon and Linux x86_64
+preflight builds, package installation checks, and the tagged release workflow
+passed. Downloaded archives matched their published SHA-256 files. The installed
+Mac executable matched the published archive byte for byte; its existing config
+was preserved and its daemon/autostart were confirmed disabled before server
+activation.
+
+On the VPS, `doctor` verified both source readers and the destination write role.
+The preview found 24 matching copies and no creates, updates or deletes. The
+same namespace, two routes, guest configuration, 14-day horizon and 1800-second
+polling were retained. Server automatic updates are explicitly disabled; version
+replacement/restart is an administrator operation. OAuth files remain 0600 in
+0700 directories under the dedicated service identity; only the separate safe
+health directory is available to the bot.
+
+The first applied periodic pass completed at 2026-10-20 11:10:26 Warsaw
+(CEST, UTC+02:00), with 24 unchanged copies. An explicit systemd restart changed
+the worker PID; the next applied pass succeeded at 11:12:04 Warsaw
+(CEST, UTC+02:00), again with 24 unchanged copies. CLI status reported worker
+version 0.2.6, systemd enabled/active, and a new successful pass. No source edits
+or artificial calendar events were used as fixtures. This proves current
+reconciliation and service restart, not a real shared-host reboot or a future
+source-change observation.
+
+The bot's isolated new-code preflight used its existing production image and
+CPU/memory ceilings. It read the native node-tools schema-v1 snapshot and
+history read-only, rendered the graph, and delivered a real metrics photo through
+the configured operator bot. The expanded history required 2.299 seconds in one
+measured read, exposing the old two-second deadline. The corrected five-second
+bounded reader retained the row cap, two-second SQLite busy timeout and refusal
+on invalid data; the rendered history contained 2699 samples in 289 buckets.
+Clearly labeled synthetic reauthorization/recovery notifications were accepted
+by Telegram using isolated notification state. No real grants were revoked and
+no production health snapshot was falsified for these tests.
+
+Telegram Assistant 6.1.13 then passed its tagged CI, image publication and
+production deployment workflow. Read-back inside the running version confirmed
+`/var/lib/node-tools` mounted read-only as `/run/host-metrics`, and the separate
+Gallendar health directory mounted read-only as `/run/gallendar-health`.
+The actual production reader returned a snapshot 1.4 seconds old, 2700 history
+samples in 289 buckets, and healthy Gallendar state. The bot's own background
+loop had already stored its healthy notification state in the shared database;
+the verification did not initialize that table or create a synthetic production
+health record. Journal definitions/completions and Mind Gum attempt counts
+remained 7, 712 and 94 respectively.
+
+Recovery copies remain in the Mac CLI home's `recovery/before-vps-20261020/`,
+and on the VPS at the bot's `config/app.env.before-gallendar-20261020` and
+`data/sqlite/recovery/bot-before-gallendar-20261020.db`. The database recovery
+copy passed integrity_check. Preserve these user-owned recovery files until the
+operator accepts the migration and their normal backup policy covers the new
+state. Temporary transfer directories and extra credential staging were removed.
+
+Google Cloud CLI access to the intended project and current calendar token
+refresh were verified. Audience publishing status was not established: the
+Cloud CLI/API checks did not expose it and the locked desktop/Chrome permissions
+prevented reading the Console page. This remains a distinct operator check;
+working Calendar access does not prove In production status.
+
 ## Current results
 
 **Primary writes and user-observed busy availability confirmed; current public-title visibility verified by API readback.** The check applies to
