@@ -342,9 +342,10 @@ restrictions may require logging in again.
 
 To move to a server, log in on the Mac and transfer the OAuth client,
 the token directory, and the TOML over SSH, keeping permissions and relative paths. Do not run two
-writers of the same namespace at the same time. Prebuilt server builds are deferred for now;
-the current delivery platform is Apple Silicon. There is no autostart: run works while
-the process is alive. Start synchronization:
+writers of the same namespace at the same time. Release builds support Apple Silicon
+and Linux x86_64. For server installation, boot autostart, health notifications,
+reauthorization and rollback, follow [Linux VPS operation](deploy/README.md).
+A foreground `run` works while the process is alive. Start synchronization:
 
 ```bash
 gallendar run
@@ -742,12 +743,13 @@ checks, updates Cargo.toml/Cargo.lock and CHANGELOG, creates a separate commit
 and an annotated tag. It does not publish by itself. `make release-push` pushes `main`
 and annotated tags without force; the release tag must point to HEAD.
 
-The current release build scope is macOS Apple Silicon (M chips) only,
-`aarch64-apple-darwin`. Intel Mac and Linux are deferred; adding platforms requires
+The current release build scope is macOS Apple Silicon (M chips),
+`aarch64-apple-darwin` and Linux `x86_64-unknown-linux-gnu`. Intel Mac and Linux ARM are deferred; adding platforms requires
 separate agreement. Previously published assets remain available.
 A push to main and a manual run check the build without publishing. A tag runs
 version verification, packaging, smoke install, and a GitHub Release with the archive
-`gallendar-macos-aarch64.tar.gz`, SHA-256, and `gallendar-install.sh`.
+`gallendar-macos-aarch64.tar.gz`, `gallendar-linux-x86_64.tar.gz`, SHA-256 files,
+and `gallendar-install.sh`.
 The public installer uses `RoTorEx/gallendar` by default and accepts `--version`, `--archive`, `--install-dir`,
 `--config-dir`, `--no-path-update`; the repository can be overridden
 via `GALLENDAR_INSTALL_REPO=OWNER/REPO`. Configs are preserved on update.

@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+- Add Linux x86_64 release builds and a dedicated hardened systemd service.
+- Publish safe atomic applied-sync health for independent Telegram monitoring,
+  preserving last success across worker restarts.
+- Identify invalid OAuth refresh grants and the account requiring sign-in,
+  without treating temporary network/server failures as expired authorization.
+- Document sole-writer server migration, reauthorization and Mac rollback.
+
 - Default new explicit routes to `visible` and use it in the config template.
   Explicit routes that omitted `mode` now publish source titles; specify `hidden`
   to keep masking. Legacy configs without routes retain hidden all-to-all behavior.

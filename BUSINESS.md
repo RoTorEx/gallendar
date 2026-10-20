@@ -28,8 +28,9 @@ Requirement sources: `calendar_busy_sync_mvp_pack.zip` (three documents),
 Ambiguities are in [TASK.md](TASK.md), future stages in
 [ROADMAP.md](ROADMAP.md).
 
-The current release build platform is macOS Apple Silicon (M chips).
-Builds for Intel Mac and Linux are deferred until separately agreed.
+Release builds support macOS Apple Silicon and Linux x86_64. The user authorized
+VPS operation with one active writer and Telegram health notifications. Intel Mac
+and Linux ARM remain deferred. See [server operation](deploy/README.md).
 
 ## Actors and concepts
 
@@ -101,9 +102,11 @@ mode does not provide the required access. User OAuth requires
 permission for the app to act on behalf of the work account; the organization may restrict
 that too. Work-user OAuth login and source reads are verified; destination write permission is
 reported by the API and verified by eight live copy read-backs; account scheduling
-behavior remains unverified. Synchronization uses the foreground run loop or the local macOS launchd login agent.
-The user authorized local background operation and reboot/login persistence; VPS work
-remains deferred. `daemon start/stop/status` controls it, with stop removing autostart.
+behavior remains unverified. Synchronization uses the foreground run loop, local macOS launchd login agent,
+or the installed Linux systemd service.
+The user authorized local background operation and reboot/login persistence, and
+subsequently server deployment. The server uses a dedicated systemd service; the
+Mac daemon is disabled before the server becomes the sole active writer. `daemon start/stop/status` controls it, with stop removing autostart.
 Both modes use poll_seconds and reread config before each pass. Periodic passes
 align to wall-clock boundaries: the current 30-minute interval runs at :00 and
 :30 in Warsaw. The first pass after starting is immediate; a long pass skips
@@ -210,6 +213,15 @@ Checking real scheduling scenarios remains useful: the presence of a Busy event
 or a successful API request does not prove the account is unavailable. A failing
 availability scenario calls for an explicit destination decision; the CLI never
 switches to primary calendars automatically.
+
+## Server health
+
+[Server operation](deploy/README.md) owns Linux installation, migration, health
+schema, monitoring thresholds and account reauthorization. A separate safe health
+directory supplies the existing Telegram bot without sharing credentials or
+calendar content. Only applied periodic runs publish it; last success survives
+restarts. Invalid refresh grants identify the affected account for reauthorization;
+network failures remain retryable sync errors. Exactly one host writes a namespace.
 
 ## Operational journal
 

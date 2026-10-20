@@ -190,17 +190,54 @@ fn save_credentials(path: &Path, credentials: &Credentials) -> Result<()> {
     let _ = fs::remove_file(temp);
     result
 }
+#[derive(Debug)]
+pub struct ReauthorizationRequired {
+    pub account: String,
+}
+
+impl std::fmt::Display for ReauthorizationRequired {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "OAuth account {} requires sign-in; run gallendar auth login --account {}",
+            self.account, self.account
+        )
+    }
+}
+
+impl std::error::Error for ReauthorizationRequired {}
+
+#[derive(Debug)]
+struct InvalidGrant;
+
+impl std::fmt::Display for InvalidGrant {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("Google rejected the OAuth grant; sign in again")
+    }
+}
+
+impl std::error::Error for InvalidGrant {}
+
 fn exchange(http: &Client, endpoint: &str, form: &[(&str, &str)]) -> Result<TokenResponse> {
     let response = http
         .post(endpoint)
         .form(form)
         .send()
         .map_err(|_| anyhow::anyhow!("OAuth token request failed (network or timeout)"))?;
-    ensure!(
-        response.status().is_success(),
-        "OAuth token request rejected (HTTP {}); log in again if access expired or was revoked; check corporate policy",
-        response.status().as_u16()
-    );
+    let status = response.status();
+    if !status.is_success() {
+        // Inspect only Google's machine error code; never expose the response body.
+        let rejected = response.json::<serde_json::Value>().ok();
+        if status.as_u16() == 400
+            && rejected.as_ref().and_then(|v| v["error"].as_str()) == Some("invalid_grant")
+        {
+            return Err(InvalidGrant.into());
+        }
+        anyhow::bail!(
+            "OAuth token request rejected (HTTP {}); log in again if access expired or was revoked; check corporate policy",
+            status.as_u16()
+        );
+    }
     let token: TokenResponse = response
         .json()
         .map_err(|_| anyhow::anyhow!("Invalid OAuth token response (contents omitted)"))?;
@@ -224,9 +261,15 @@ fn refresh(
     http: &Client,
     endpoint: &str,
 ) -> Result<String> {
-    let mut saved = read_credentials(path)?;
+    let mut saved = read_credentials(path).map_err(|_| ReauthorizationRequired {
+        account: account.name.clone(),
+    })?;
     let required = scopes(config, account)?;
-    check_credentials(&saved, desktop, account, &required)?;
+    check_credentials(&saved, desktop, account, &required).map_err(|_| {
+        ReauthorizationRequired {
+            account: account.name.clone(),
+        }
+    })?;
     let token = exchange(
         http,
         endpoint,
@@ -236,7 +279,16 @@ fn refresh(
             ("client_secret", &desktop.client_secret),
             ("refresh_token", &saved.refresh_token),
         ],
-    )?;
+    )
+    .map_err(|error| {
+        if error.downcast_ref::<InvalidGrant>().is_some() {
+            anyhow::Error::new(ReauthorizationRequired {
+                account: account.name.clone(),
+            })
+        } else {
+            error
+        }
+    })?;
     if let Some(scope) = token.scope {
         let granted = scope
             .split_whitespace()
@@ -718,11 +770,33 @@ mod tests {
             400,
             json!({"error":"invalid_grant", "error_description":"secret-server-data"}),
         );
-        let error = refresh(&config, account, &desktop, &path, &client().unwrap(), &url)
-            .unwrap_err()
-            .to_string();
+        let error =
+            refresh(&config, account, &desktop, &path, &client().unwrap(), &url).unwrap_err();
         worker.join().unwrap();
-        assert!(!error.contains("secret-server-data"));
+        assert_eq!(
+            error
+                .downcast_ref::<ReauthorizationRequired>()
+                .unwrap()
+                .account,
+            account.name
+        );
+        assert!(!error.to_string().contains("secret-server-data"));
+        assert_eq!(fs::read(&path).unwrap(), original);
+    }
+
+    #[test]
+    fn temporary_token_failure_does_not_request_reauthorization() {
+        let temp = Temp::new();
+        let (config, desktop) = fixture(&temp);
+        let account = &config.accounts[0];
+        let path = token_path(&config, account).unwrap();
+        save_credentials(&path, &credentials(&config, account, &desktop)).unwrap();
+        let original = fs::read(&path).unwrap();
+        let (url, worker) = token_server(503, json!({"error":"temporarily_unavailable"}));
+        let error =
+            refresh(&config, account, &desktop, &path, &client().unwrap(), &url).unwrap_err();
+        worker.join().unwrap();
+        assert!(error.downcast_ref::<ReauthorizationRequired>().is_none());
         assert_eq!(fs::read(&path).unwrap(), original);
     }
     #[test]

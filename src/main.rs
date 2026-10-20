@@ -3,6 +3,7 @@ mod daemon;
 mod demo;
 mod engine;
 mod google;
+mod health;
 mod logging;
 mod model;
 mod oauth;
@@ -85,7 +86,7 @@ enum Command {
     },
     /// Check source-read and destination-write roles without changing Google data
     Doctor,
-    /// Control the persistent macOS background sync
+    /// Control macOS launchd or the installed Linux systemd service
     Daemon {
         #[command(subcommand)]
         action: DaemonAction,
@@ -526,6 +527,15 @@ fn run_cli(cli: &Cli) -> Result<()> {
         }
         Command::Run(args) => {
             let _lock = lock(&path)?;
+            let health_directory = std::env::var_os("GALLENDAR_HEALTH_DIR").map(PathBuf::from);
+            let mut health = if args.writes(true) {
+                health_directory
+                    .as_ref()
+                    .map(|directory| health::Health::start(directory, config.poll_seconds))
+                    .transpose()?
+            } else {
+                None
+            };
             let stopped = Arc::new(AtomicBool::new(false));
             let signal = stopped.clone();
             ctrlc::set_handler(move || {
@@ -539,7 +549,12 @@ fn run_cli(cli: &Cli) -> Result<()> {
                 if stopped.load(Ordering::SeqCst) {
                     break;
                 }
-                if let Err(error) = sync(&config, args, cli.json, args.writes(true)) {
+                let result = sync(&config, args, cli.json, args.writes(true));
+                if let Some(state) = &mut health {
+                    state.completed(&result, config.poll_seconds);
+                    state.publish(health_directory.as_ref().unwrap())?;
+                }
+                if let Err(error) = result {
                     logging::event(
                         "retry_scheduled",
                         json!({"error":format!("{error:#}"),"poll_seconds":config.poll_seconds}),

@@ -1,0 +1,36 @@
+[Unit]
+Description=Gallendar calendar synchronization
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=gallendar
+Group=gallendar
+Environment=HOME=/srv/gallendar
+Environment=GALLENDAR_HEALTH_DIR=/srv/gallendar/health
+WorkingDirectory=/srv/gallendar
+ExecStart=/srv/gallendar/.x-cli-gallendar/bin/gallendar --config /srv/gallendar/.x-cli-gallendar/config.toml run
+Restart=always
+RestartSec=30
+TimeoutStopSec=120
+UMask=0022
+MemoryMax=256M
+CPUQuota=20%
+TasksMax=32
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/srv/gallendar
+
+[Install]
+WantedBy=multi-user.target

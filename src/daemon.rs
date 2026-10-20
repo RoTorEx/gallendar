@@ -1,9 +1,13 @@
 use anyhow::{Context, Result, ensure};
 use serde_json::{Value, json};
-use std::{fs, path::Path, process::Command};
+#[cfg(target_os = "macos")]
+use std::fs;
+use std::{path::Path, process::Command};
 
+#[cfg(target_os = "macos")]
 const LABEL: &str = "com.rotorex.gallendar";
 
+#[cfg(any(target_os = "macos", test))]
 fn xml(value: &str) -> String {
     value
         .replace('&', "&amp;")
@@ -13,6 +17,7 @@ fn xml(value: &str) -> String {
         .replace('\'', "&apos;")
 }
 
+#[cfg(any(target_os = "macos", test))]
 fn plist(binary: &Path, config: &Path, home: &Path) -> Result<String> {
     let text = |path: &Path| -> Result<String> {
         Ok(xml(path
@@ -43,6 +48,7 @@ fn plist(binary: &Path, config: &Path, home: &Path) -> Result<String> {
     ))
 }
 
+#[cfg(any(target_os = "macos", test))]
 fn field(output: &str, name: &str) -> Option<String> {
     output.lines().find_map(|line| {
         line.trim()
@@ -262,9 +268,62 @@ pub fn run(action: &str, config: &Path, home: &Path) -> Result<Value> {
     }
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "linux")]
+pub fn run(action: &str, config: &Path, home: &Path) -> Result<Value> {
+    const SERVICE: &str = "gallendar.service";
+    let active_config = Path::new("/srv/gallendar/.x-cli-gallendar/config.toml");
+    if action != "status" {
+        ensure!(
+            config == active_config,
+            "The system service uses /srv/gallendar/.x-cli-gallendar/config.toml"
+        );
+        let args: &[&str] = match action {
+            "start" => &["enable", "--now", SERVICE],
+            "stop" => &["disable", "--now", SERVICE],
+            // A stopped service must remain stopped after an update/restart request.
+            "restart" => &["try-restart", SERVICE],
+            _ => anyhow::bail!("Unknown daemon action"),
+        };
+        let result = Command::new("systemctl").args(args).output()?;
+        ensure!(
+            result.status.success(),
+            "Cannot control system service; use sudo systemctl: {}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+    }
+    let result = Command::new("systemctl")
+        .args([
+            "show",
+            SERVICE,
+            "--property=LoadState,ActiveState,UnitFileState,MainPID,ExecMainStatus",
+        ])
+        .output()
+        .context("Cannot query systemd")?;
+    ensure!(
+        result.status.success(),
+        "Cannot query Gallendar system service"
+    );
+    let output = String::from_utf8_lossy(&result.stdout);
+    let value = |key: &str| {
+        output
+            .lines()
+            .find_map(|line| line.strip_prefix(&format!("{key}=")))
+    };
+    let pid = value("MainPID")
+        .and_then(|p| p.parse::<u32>().ok())
+        .filter(|p| *p > 0);
+    let sync = crate::logging::sync_status(&home.join("logs"), active_config, pid)?;
+    Ok(json!({"enabled": value("UnitFileState") == Some("enabled"),
+        "loaded": value("LoadState") == Some("loaded"),
+        "running": value("ActiveState") == Some("active") && pid.is_some(),
+        "pid": pid, "state":value("ActiveState"), "last_exit_code":value("ExecMainStatus"),
+        "agent":"/etc/systemd/system/gallendar.service", "config":active_config,
+        "logs":home.join("logs"), "version":sync["worker_version"], "sync":sync}))
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
 pub fn run(_action: &str, _config: &Path, _home: &Path) -> Result<Value> {
-    anyhow::bail!("Local daemon requires macOS")
+    anyhow::bail!("Daemon requires macOS or Linux with systemd")
 }
 
 #[cfg(test)]

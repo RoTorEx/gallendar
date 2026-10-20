@@ -15,5 +15,6 @@ Implementation and API validation are recorded in [business/validation.md](busin
   configured 30-minute clock-aligned interval plus pass duration. Reboot persistence is configured
   and launchd recovery tested; an actual reboot remains an operator check.
 
-No repository implementation is queued here. VPS work and additional platforms
-remain deferred. Further releases or scope expansion require a user request.
+Authorized deployment in progress: Linux x86_64 release, sole VPS writer,
+Telegram auth/staleness/recovery alerts, node-tools metrics reconnection in the
+bot, and verified patch releases. Additional platforms remain deferred.
