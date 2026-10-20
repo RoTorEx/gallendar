@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-10-20
+
 - Add Linux x86_64 release builds and a dedicated hardened systemd service.
 - Publish safe atomic applied-sync health for independent Telegram monitoring,
   preserving last success across worker restarts.
